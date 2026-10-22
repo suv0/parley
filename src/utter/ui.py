@@ -54,7 +54,7 @@ def strip(s: paths.Settings) -> None:
     idle_text = {"text": f"Say “{s.wake_name}”"}
 
     root = tk.Tk()
-    root.title("Parley")
+    root.title("Utter")
     root.overrideredirect(True)
     root.attributes("-topmost", True)
     root.attributes("-alpha", 1.0 if s.high_contrast else 0.93)
@@ -183,9 +183,9 @@ def strip(s: paths.Settings) -> None:
 
 
 def restart() -> None:
-    """Starts a new Parley that waits for this one to quit (so a settings change takes effect)."""
+    """Starts a new Utter that waits for this one to quit (so a settings change takes effect)."""
     exe = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
-    subprocess.Popen([exe if os.path.exists(exe) else sys.executable, "-m", "parley", "run", "--after",
+    subprocess.Popen([exe if os.path.exists(exe) else sys.executable, "-m", "utter", "run", "--after",
                       str(os.getpid())], cwd=paths.DATA)
 
 
@@ -234,9 +234,9 @@ def tray(s: paths.Settings) -> None:
 
     item = pystray.MenuItem
     icon = pystray.Icon(
-        "parley",
+        "utter",
         image(COLORS["idle"]),
-        "Parley (voice for Claude)",
+        "Utter (voice for Claude)",
         menu=pystray.Menu(
             item(lambda _: "Resume listening" if paused.is_set() else "Pause listening", toggle_pause, default=True),
             item("Stop reading the answer", lambda i, _: stop_answer()),

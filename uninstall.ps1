@@ -1,13 +1,13 @@
-# Removes Parley: stops it, takes its hook out of Claude Code, removes its shortcuts and its files.
+# Removes Utter: stops it, takes its hook out of Claude Code, removes its shortcuts and its files.
 # Keeps your settings file (config.toml) unless you pass -All.
 param([switch]$All)
 
 $ErrorActionPreference = 'Stop'
-$data = Join-Path $env:USERPROFILE '.parley'
+$data = Join-Path $env:USERPROFILE '.utter'
 $venvPython = Join-Path $data 'venv\Scripts\python.exe'
 
 if (Test-Path $venvPython) {
-    & $venvPython -m parley uninstall
+    & $venvPython -m utter uninstall
     Start-Sleep -Milliseconds 500
 }
 if (Test-Path $data) {
@@ -18,4 +18,4 @@ if (Test-Path $data) {
 if (-not $All -and (Test-Path (Join-Path $data 'config.toml'))) {
     Write-Host "Kept your settings in $data\config.toml (pass -All to remove them too)."
 }
-Write-Host 'Parley is uninstalled.' -ForegroundColor Green
+Write-Host 'Utter is uninstalled.' -ForegroundColor Green

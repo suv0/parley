@@ -25,12 +25,12 @@ from .targets import Hands, clipboard_text, restore_clipboard
 from .voice import clip, cue, make_audio, play, play_as_answer, stop_answer
 from .words import change, ends_with_send, is_wake, joined, parse, strip_send_phrase, tidy
 
-log = logging.getLogger("parley")
+log = logging.getLogger("utter")
 
 RATE = 16000
 BLOCK = 1600  # 0.1 s
 LIVE_EVERY = 1.0  # seconds of audio between live updates
-UNCLEAR = -0.85  # average log-probability below which Parley isn't sure it heard right
+UNCLEAR = -0.85  # average log-probability below which Utter isn't sure it heard right
 
 paused = threading.Event()
 stopping = threading.Event()

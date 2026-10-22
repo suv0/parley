@@ -1,11 +1,11 @@
-"""Where Parley keeps its files, and the settings a person can change.
+"""Where Utter keeps its files, and the settings a person can change.
 
-Everything lives in  %USERPROFILE%\\.parley : the settings file (config.toml, made by
-`parley setup`), the Python environment, models, logs and small state files.
+Everything lives in  %USERPROFILE%\\.utter : the settings file (config.toml, made by
+`utter setup`), the Python environment, models, logs and small state files.
 
 Not under AppData on purpose: the Microsoft Store's Python quietly redirects its writes to
 AppData into a private folder, so other programs (and the installer) would not find them.
-Set PARLEY_HOME to use another folder, and PARLEY_MODELS for the models (handy for tests).
+Set UTTER_HOME to use another folder, and UTTER_MODELS for the models (handy for tests).
 """
 
 from __future__ import annotations
@@ -15,14 +15,14 @@ import tomllib
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
-DATA = Path(os.environ.get("PARLEY_HOME") or Path.home() / ".parley")
+DATA = Path(os.environ.get("UTTER_HOME") or Path.home() / ".utter")
 CONFIG_FILE = DATA / "config.toml"
-MODELS = Path(os.environ.get("PARLEY_MODELS") or DATA / "models")
+MODELS = Path(os.environ.get("UTTER_MODELS") or DATA / "models")
 VOSK_MODEL = MODELS / "vosk-model-small-en-us-0.15"
 WHISPER_MODELS = MODELS / "whisper"
 STATE = DATA / "state"
 CLIPS = STATE / "clips"
-LOG = DATA / "parley.log"
+LOG = DATA / "utter.log"
 VOICE_OFF = DATA / "voice-off"  # exists = don't read answers aloud
 LISTENING_FLAG = STATE / "listening.flag"  # exists = the mic is open, so stay silent
 PLAYER_PID = STATE / "player.pid"
@@ -35,7 +35,7 @@ STRIP_PLACE = STATE / "strip.json"
 class Settings:
     # --- Waking and sending ---
 
-    # Say one of these to wake Parley. The wake-word engine only knows common English
+    # Say one of these to wake Utter. The wake-word engine only knows common English
     # words, so "Claude" also comes through as "cloud" or "clawed".
     wake_phrases: list[str] = field(
         default_factory=lambda: ["hey claude", "hey cloud", "hey clawed", "okay claude", "hi claude"]
@@ -53,7 +53,7 @@ class Settings:
     )
     # In "pause" send mode, this much quiet sends the message.
     pause_seconds: float = 2.0
-    # When Parley isn't sure it heard you right, it types the words but doesn't send them,
+    # When Utter isn't sure it heard you right, it types the words but doesn't send them,
     # and reads them back so you can check.
     check_unclear: bool = True
 
@@ -67,7 +67,7 @@ class Settings:
 
     # --- Hearing you right ---
 
-    # Words Parley should expect: names, product words, jargon.
+    # Words Utter should expect: names, product words, jargon.
     words: list[str] = field(default_factory=list)
     # Fix words it keeps getting wrong: "what it hears" = "what to type".
     replacements: dict[str, str] = field(default_factory=dict)
@@ -90,7 +90,7 @@ class Settings:
 
     # Stop listening after this much quiet, and leave your words in the box unsent.
     quiet_seconds: float = 15.0
-    # Give up if you say nothing this long after you wake Parley.
+    # Give up if you say nothing this long after you wake Utter.
     nothing_heard_seconds: float = 8.0
     # A short command ("scratch that") is acted on after this much quiet.
     command_pause_seconds: float = 1.5
@@ -112,7 +112,7 @@ class Settings:
     speaking_rate: int = 0
     # Longest answer read aloud, in characters. Longer answers are cut at a sentence.
     max_spoken_chars: int = 900
-    # Short beeps when Parley starts and stops listening, instead of saying "Yes?".
+    # Short beeps when Utter starts and stops listening, instead of saying "Yes?".
     cue_sounds: bool = True
 
     # --- The status strip ---
@@ -158,12 +158,12 @@ def load(path: Path = CONFIG_FILE) -> Settings:
 
 
 def default_file_text() -> str:
-    """config.toml as `parley setup` first writes it: every setting, with its comment."""
+    """config.toml as `utter setup` first writes it: every setting, with its comment."""
     import inspect
     import re
 
     source = inspect.getsource(Settings)
-    out = ["# Parley settings. After a change, choose Restart in the tray icon's menu.", ""]
+    out = ["# Utter settings. After a change, choose Restart in the tray icon's menu.", ""]
     comments: list[str] = []
     defaults = Settings()
     names = {f.name for f in fields(Settings)}
@@ -203,7 +203,7 @@ def missing_settings_text(existing: str) -> str:
             blocks.append("\n".join(line for line in lines if not line.startswith("# ===")))
     if not blocks:
         return ""
-    return "# --- Added by a newer version of Parley ---\n\n" + "\n\n".join(blocks) + "\n"
+    return "# --- Added by a newer version of Utter ---\n\n" + "\n\n".join(blocks) + "\n"
 
 
 def _toml(value) -> str:

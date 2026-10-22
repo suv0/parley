@@ -1,4 +1,4 @@
-"""Parley from wake phrase to sent message, with recorded speech instead of a microphone.
+"""Utter from wake phrase to sent message, with recorded speech instead of a microphone.
 
 The speech is made with the Edge voice, so these tests need the internet and the installed
 speech models (install.ps1). Without them they are skipped.
@@ -15,11 +15,11 @@ pytest.importorskip("faster_whisper")
 pytest.importorskip("vosk")
 pytest.importorskip("edge_tts")
 
-from parley import app as app_module  # noqa: E402
-from parley import settings as paths  # noqa: E402
-from parley.app import BLOCK, RATE, Assistant  # noqa: E402
+from utter import app as app_module  # noqa: E402
+from utter import settings as paths  # noqa: E402
+from utter.app import BLOCK, RATE, Assistant  # noqa: E402
 
-if not os.environ.get("PARLEY_MODELS") or not paths.VOSK_MODEL.exists():
+if not os.environ.get("UTTER_MODELS") or not paths.VOSK_MODEL.exists():
     pytest.skip("speech models not installed", allow_module_level=True)
 
 SPEECH_CACHE: dict[str, np.ndarray] = {}

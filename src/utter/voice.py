@@ -18,7 +18,7 @@ from pathlib import Path
 from . import settings as paths
 
 NO_WINDOW = 0x08000000
-log = logging.getLogger("parley")
+log = logging.getLogger("utter")
 
 
 def ps_quote(value) -> str:

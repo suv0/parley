@@ -1,5 +1,5 @@
-from parley.settings import Settings
-from parley.words import (
+from utter.settings import Settings
+from utter.words import (
     change, command_in, ends_with_send, is_wake, joined, parse, plain, spell, strip_send_phrase, tidy,
 )
 

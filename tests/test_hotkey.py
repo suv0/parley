@@ -1,4 +1,4 @@
-from parley.hotkey import parse
+from utter.hotkey import parse
 
 
 def test_shortcuts_are_understood():

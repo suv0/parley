@@ -1,140 +1,198 @@
-# Parley
+<div align="center">
 
-**Hands-free voice for Claude on Windows.**
+<img src="https://capsule-render.vercel.app/api?type=waving&height=200&color=0:0F172A,100:312E81&text=Utter&fontColor=ffffff&fontSize=72&fontAlignY=36&desc=Hands-free%20voice%20for%20Claude%20on%20Windows&descSize=20&descAlignY=58&animation=fadeIn" width="100%" alt="Utter"/>
 
-Say "Hey Claude", talk, and watch your words appear in Claude's message box as you speak.
-Say "send it" to send. Claude's answer is read back to you in a natural voice.
+[![What you can say](https://readme-typing-svg.demolab.com?font=Fira+Code&size=20&pause=1100&color=A5B4FC&center=true&vCenter=true&width=640&lines=%22Hey+Claude...%22;%22Fix+the+login+page.+Send+it.%22;%22Read+it+back.%22;%22Change+staging+to+production.%22;%22Repeat+that.%22)](#-what-you-can-say)
 
-It works in the Claude desktop app, and in Claude Code (or any other app) wherever your cursor is.
+[![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=for-the-badge&logo=windows&logoColor=white)](#-install)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](#-install)
+[![Speech stays on your PC](https://img.shields.io/badge/speech-on%20your%20PC-22A06B?style=for-the-badge&logo=lock&logoColor=white)](#-privacy)
+[![MIT](https://img.shields.io/badge/license-MIT-64748B?style=for-the-badge)](LICENSE)
 
-> Parley is an unofficial community project. It is not made by, or connected with, Anthropic.
+[![tests](https://github.com/suv0/utter/actions/workflows/tests.yml/badge.svg)](https://github.com/suv0/utter/actions/workflows/tests.yml)
 
-## What it does
+**Say "Hey Claude". Talk. Watch your words appear. Say "send it". Hear the answer.**
 
-- **Wake phrase or shortcut.** "Hey Claude" or **Ctrl+Alt+H** starts listening. Nothing is recorded before that.
-- **Live words.** In the Claude app, what you say shows up in the message box while you talk. In other apps, it shows on
-  the status strip, then is typed when you finish.
-- **You decide when to send.** End with "send it", or press the shortcut again. Pausing to think never sends anything,
-  unless you choose the "send on a pause" mode. If you stop talking for 15 seconds, your words stay typed, unsent.
-- **Spoken answers.** Claude's reply is read aloud, without the code, tables or links. Pick the voice and the speed.
-  "Repeat that" plays it again.
-- **Hear and fix your message.** "Read it back" reads your message to you. "Change staging to production" fixes a word.
-  "Spell kilo echo" types letters.
-- **Hears you right.** Add your own names and jargon to a word list, and fix words it keeps getting wrong. "Um" and
-  "uh" are taken out. When Parley isn't sure it heard you, it doesn't send: it types the words and reads them back.
-- **A small status strip.** It stays on top of other windows and shows what Parley is doing and where the words will go.
-  Click **?** for the commands. There's a large, high-contrast version too.
-- **Short beeps** tell you when it starts and stops listening, so you don't have to watch the screen.
-- **Private speech recognition.** Your voice is turned into text on your own computer. See [Privacy](#privacy).
+<img src="docs/demo.svg" width="760" alt="Utter in action: the words you say type into Claude's message box, the status strip turns red while listening, the message is sent, and Claude's answer is read aloud"/>
 
-## Commands
+</div>
+
+> [!NOTE]
+> Utter is an unofficial community project. It is not made by, or connected with, Anthropic.
+
+## ✨ Why Utter
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 🎙️ Talk, don't type
+Say **"Hey Claude"** or press **Ctrl+Alt+H**. Your words appear in Claude's box as you speak.
+
+</td>
+<td width="33%" valign="top">
+
+### ✋ You decide when to send
+Pausing to think never sends. End with **"send it"**, or press the shortcut again.
+
+</td>
+<td width="33%" valign="top">
+
+### 🔊 Hear the answer
+Claude's reply is read aloud, without the code and tables. **"Repeat that"** plays it again.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🪟 Works anywhere
+In the Claude app, or wherever your cursor is: Claude Code in a terminal, an editor, a chat.
+
+</td>
+<td valign="top">
+
+### 🔒 Private by default
+Speech recognition runs **on your PC**. Your voice is never uploaded.
+
+</td>
+<td valign="top">
+
+### ♿ Built for access
+No mouse, keyboard or screen needed. Beeps, spoken problems, a large high-contrast strip.
+
+</td>
+</tr>
+</table>
+
+## 🗣️ What you can say
 
 Say **Hey Claude** (or press **Ctrl+Alt+H**) first.
 
-| Say | What happens |
-| --- | --- |
-| *anything*, then …**send it** | Types it and sends it. "send that", "that's it" and "over and out" work too |
-| **send it** | Sends what's already typed |
-| **scratch that** | Clears the box |
-| **read it back** | Reads your message aloud |
-| **change** *word* **to** *word* | Fixes a word in the box ("change staging to production") |
-| **spell** *letters* | Types letters: "spell kilo uniform bravo echo" types *kube*. Say "capital" for a capital letter |
-| **type** *command* | Types a command word instead of running it: "type stop" types *stop* |
-| **repeat that** | Reads Claude's last answer again |
-| **quiet** | Stops reading the current answer |
-| **stop** | Stops Claude's work (presses Esc) |
-| **voice off** / **voice on** | Turns spoken answers off or on |
-| **help** | Shows or hides the command list on the strip |
+| | Say | What happens |
+| :---: | --- | --- |
+| 💬 | *anything*, then …**send it** | Types it and sends it. "send that", "that's it" and "over and out" work too |
+| 📨 | **send it** | Sends what's already typed |
+| 🧹 | **scratch that** | Clears the box |
+| 👂 | **read it back** | Reads your message aloud |
+| ✏️ | **change** *word* **to** *word* | Fixes a word: "change staging to production" |
+| 🔤 | **spell** *letters* | "spell kilo uniform bravo echo" types *kube*. Say "capital" for a capital letter |
+| ⌨️ | **type** *command* | Types a command word instead of running it: "type stop" types *stop* |
+| 🔁 | **repeat that** | Reads Claude's last answer again |
+| 🤫 | **quiet** | Stops reading the current answer |
+| ⏹️ | **stop** | Stops Claude's work (presses Esc) |
+| 🔈 | **voice off** / **voice on** | Turns spoken answers off or on |
+| ❓ | **help** | Shows the command list on the strip |
 
-Spelling works best with the NATO alphabet (alpha, bravo, charlie…). Single letters are easy to mishear.
+> [!TIP]
+> Spelling works best with the NATO alphabet (alpha, bravo, charlie…). Single letters are easy to mishear.
 
-## Where the words go
+## 🔄 How a message travels
 
-- **The Claude app is in front:** its message box. Click it once after installing, so Parley knows where it is.
-  Your words appear as you talk, and every command above works.
-- **Any other app is in front** (a terminal running Claude Code, an editor, a chat): wherever your cursor is.
-  Parley can't read other apps, so your words show on the strip while you talk and are typed once when you finish.
-  "Read it back" reads the last thing it typed. "Change" works in the Claude app only.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor You
+    participant U as Utter
+    participant C as Claude
+    You->>U: "Hey Claude"
+    U-->>You: beep
+    You->>U: "Fix the login page…"
+    U->>C: words appear in the box as you talk
+    You->>U: "…send it"
+    U->>C: final words, then Enter
+    C-->>U: the answer
+    U-->>You: answer read aloud
+```
 
-To always use one or the other, set `target` in the settings.
+## 🚦 The status strip
 
-## The status strip
+A small strip sits at the bottom right of your screen and shows what Utter is doing.
 
-A small dark strip sits at the bottom right of your screen:
+| Dot | Means |
+| :---: | --- |
+| 🟢 | Waiting for "Hey Claude" |
+| 🔴 | Listening. It shows where the words are going, and your words as they're heard |
+| 🟠 | Working, or a problem it's telling you about |
+| ⚪ | Paused |
 
-- 🟢 green: waiting for "Hey Claude"
-- 🔴 red: listening. It shows where the words are going, and your words as they're heard
-- 🟠 orange: working, or a problem it is telling you about
-- ⚪ grey: paused
+Drag it anywhere, and it remembers the spot. Click **?** for the commands. The tray icon near the clock can pause
+listening, stop the voice, show help, open the settings, restart and quit.
 
-Drag it anywhere, and it remembers the spot. Click **?** to see the commands.
+## 📦 Install
 
-The tray icon (near the clock) can:
+1. **Download** this project: **Code → Download ZIP**, then unzip it.
+   Or, with git: `git clone https://github.com/suv0/utter`.
+2. **Double-click `install.cmd`.**
+3. **Click the Claude app's message box once**, then say **"Hey Claude"**.
 
-- pause listening;
-- stop the voice;
-- turn spoken answers on or off;
-- hide the strip;
-- show the help;
-- open the microphone settings, the settings file or the log;
-- restart Parley after a settings change;
-- quit.
+<details>
+<summary><b>What the installer does</b></summary>
 
-## Accessibility
+<br>
 
-- **No mouse or keyboard needed** after setup. Every command works by voice.
-- **No screen needed.** Beeps mark the start and end of listening. Problems are spoken. "Read it back" and
-  "repeat that" let you hear your message and the answer.
-- **A keyboard shortcut instead of the wake phrase**, for noisy rooms, or if the wake phrase is hard for you to say.
-  Set `hotkey` to any key combination.
-- **Large, high-contrast strip:** set `strip_size = "large"` and `high_contrast = true`.
-- **Slower or faster speech:** set `speaking_rate`, for example `-30` for slower.
-- **More time to think:** raise `quiet_seconds`. Nothing sends until you say so.
+- Finds Python 3.11 or newer, and offers to install Python 3.12 if there is none.
+- Makes a private Python environment in `%USERPROFILE%\.utter`, so it never touches your other Python projects.
+- Downloads the speech models (about 640 MB, only once).
+- Turns on spoken answers in Claude Code.
+- Adds Utter to the Start menu and sets it to start with Windows.
+- Checks your microphone, then starts Utter.
 
-## Requirements
+To **update**, download the new version and run `install.cmd` again. Your settings are kept, and new settings are
+added with their defaults.
+
+</details>
+
+<details>
+<summary><b>Requirements</b></summary>
+
+<br>
 
 - Windows 10 or 11.
 - The [Claude desktop app](https://claude.ai/download), or Claude Code in a terminal.
-- Python 3.11, 3.12 or 3.13. The installer offers to install Python 3.12 if you have none.
+- Python 3.11, 3.12 or 3.13. The installer can install it for you.
 - A microphone. Headphones are best, so the mic doesn't hear the answers being read aloud.
 - About 1 GB of disk space, and an internet connection for the first install.
 
-## Install
+</details>
 
-1. Download this project: **Code → Download ZIP** on GitHub, then unzip it.
-   Or, with git, run `git clone https://github.com/suv0/parley`.
-2. Double-click **`install.cmd`**.
+## 🎯 Where the words go
 
-The installer:
+| In front | Words go to | While you talk |
+| --- | --- | --- |
+| **Claude app** | Its message box (click it once after installing) | Words appear live in the box. Every command works |
+| **Any other app** | Wherever your cursor is | Words show on the strip, then are typed once when you finish |
 
-- makes a private Python environment in `%USERPROFILE%\.parley`, so it never touches your other Python projects;
-- downloads the speech models (about 640 MB, only once);
-- turns on spoken answers in Claude Code;
-- adds Parley to the Start menu and sets it to start with Windows;
-- checks your microphone, then starts Parley.
+To always use one, set `target` to `"claude-app"` or `"cursor"`.
 
-To **update**, download the new version and run `install.cmd` again. Your settings are kept, and new settings are added
-with their defaults.
+## ♿ Accessibility
 
-### First use
+- **No mouse or keyboard needed** after setup. Every command works by voice.
+- **No screen needed.** Beeps mark the start and end of listening, problems are spoken, and "read it back" and
+  "repeat that" let you hear your message and the answer.
+- **A shortcut instead of the wake phrase**, for noisy rooms, or if the wake phrase is hard for you to say.
+- **A large, high-contrast strip:** `strip_size = "large"`, `high_contrast = true`.
+- **Slower or faster speech:** `speaking_rate = -30` (slower) or `25` (faster).
+- **More time to think:** raise `quiet_seconds`. Nothing sends until you say so.
+- **Unclear messages are never sent.** When Utter isn't sure it heard you, it types the words and reads them back.
 
-1. Open the Claude app and **click its message box once**. That's how Parley learns where to type.
-2. Say **"Hey Claude"**, wait for the beep, then talk.
-3. End with **"send it"**.
+## ⚙️ Settings
 
-## Settings
+Open **tray icon → Open the settings file** (`%USERPROFILE%\.utter\config.toml`). Every setting has a comment. After a
+change, choose **Restart** in the tray menu.
 
-Open **Tray icon → Open the settings file**. It's at `%USERPROFILE%\.parley\config.toml`, and every setting has a
-comment. After a change, choose **Restart** in the tray menu.
+<details>
+<summary><b>The useful ones</b></summary>
 
-The useful ones:
+<br>
 
 ```toml
-hotkey = "ctrl+alt+h"   # or "" for none
+hotkey = "ctrl+alt+h"       # or "" for none
 send_mode = "phrase"        # "pause" also sends when you stop talking for pause_seconds
 target = "auto"             # "claude-app" or "cursor" to always use one
-words = ["Kubernetes", "PostgreSQL", "Priya"]          # names and jargon to expect
-replacements = { "get hub" = "GitHub" }                # "what it hears" = "what to type"
+words = ["Kubernetes", "PostgreSQL", "Priya"]   # names and jargon to expect
+replacements = { "get hub" = "GitHub" }         # "what it hears" = "what to type"
+remove_fillers = true       # take out "um" and "uh"
 language = "en"             # "de", "es", "fr", "hi", "bn", ...: run install.cmd again after changing it
 voice_engine = "edge"       # "windows" for the offline Windows voices
 voice = "en-US-AndrewMultilingualNeural"   # any Edge voice: python -m edge_tts --list-voices
@@ -148,97 +206,158 @@ strip_size = "normal"       # or "large"
 high_contrast = false
 ```
 
-## Privacy
+</details>
 
-- **The wake phrase and speech-to-text run on your computer.** Parley uses [Vosk](https://alphacephei.com/vosk/) and
-  [faster-whisper](https://github.com/SYSTRAN/faster-whisper). Your voice is never uploaded.
-- **The natural voice is online.** With `voice_engine = "edge"` (the default), answers are read aloud by Microsoft's
-  Edge voice service through [edge-tts](https://github.com/rany2/edge-tts), so the text being spoken is sent to
-  Microsoft. Set `voice_engine = "windows"` to use the offline Windows voices instead. If the Edge service can't be
-  reached, Parley uses the Windows voice anyway.
-- Parley sends nothing anywhere else, and keeps no recordings.
+## 🔒 Privacy
 
-## Troubleshooting
+| What | Where it happens |
+| --- | --- |
+| Hearing the wake phrase | 🟢 On your PC ([Vosk](https://alphacephei.com/vosk/)) |
+| Turning your voice into text | 🟢 On your PC ([faster-whisper](https://github.com/SYSTRAN/faster-whisper)) |
+| Reading answers aloud, `voice_engine = "windows"` | 🟢 On your PC |
+| Reading answers aloud, `voice_engine = "edge"` (default) | 🟠 The text is sent to Microsoft's Edge voice service ([edge-tts](https://github.com/rany2/edge-tts)) |
 
-**The strip says it can't use the microphone.**
+Utter keeps no recordings and sends nothing anywhere else. If the Edge voice can't be reached, it uses the Windows
+voice.
+
+## 🩺 Troubleshooting
+
+<details>
+<summary><b>The strip says it can't use the microphone</b></summary>
+
+<br>
+
 Open **Settings → Privacy & security → Microphone**. Turn on *Microphone access*, *Let apps access your microphone*
-and *Let desktop apps access your microphone*. Then start Parley again.
+and *Let desktop apps access your microphone*. Then start Utter again.
 
-**It says "Click the Claude message box once".**
-Parley hasn't seen you click a Claude message box yet, or the window moved. Click into the box, then try again.
+</details>
 
-**It doesn't hear "Hey Claude".**
+<details>
+<summary><b>It says "Click the Claude message box once"</b></summary>
+
+<br>
+
+Utter hasn't seen you click a Claude message box yet, or the window moved. Click into the box, then try again.
+
+</details>
+
+<details>
+<summary><b>It doesn't hear "Hey Claude"</b></summary>
+
+<br>
+
 Speak at a normal volume, close to the mic. Check that the right microphone is the Windows default, or set
 `microphone` in the settings. The shortcut (Ctrl+Alt+H) always works.
 
-**The strip says the shortcut is taken by another app.**
+</details>
+
+<details>
+<summary><b>The strip says the shortcut is taken by another app</b></summary>
+
+<br>
+
 Another program already uses that key combination. Set `hotkey` to a different one, such as `"ctrl+shift+f9"`, then
 choose Restart in the tray menu.
 
-**It typed in the wrong app.**
-With `target = "auto"`, words go to the app that was in front when you woke Parley. The strip shows where. Set
-`target = "claude-app"` to always use the Claude app.
+</details>
 
-**It keeps mishearing a name.** Add it to `words`, or add the wrong version to `replacements`.
+<details>
+<summary><b>It typed in the wrong app</b></summary>
 
-**Check everything at once.** Open PowerShell and run:
+<br>
+
+With `target = "auto"`, words go to the app that was in front when you woke Utter, and the strip shows which one.
+Set `target = "claude-app"` to always use the Claude app.
+
+</details>
+
+<details>
+<summary><b>It keeps mishearing a name</b></summary>
+
+<br>
+
+Add it to `words`, or add the wrong version to `replacements`.
+
+</details>
+
+<details>
+<summary><b>Check everything at once</b></summary>
+
+<br>
 
 ```powershell
-& "$env:USERPROFILE\.parley\venv\Scripts\python.exe" -m parley doctor
+& "$env:USERPROFILE\.utter\venv\Scripts\python.exe" -m utter doctor
 ```
 
-The log is at `%USERPROFILE%\.parley\parley.log`.
+The log is at `%USERPROFILE%\.utter\utter.log`.
 
-## Limits
+</details>
+
+## ⚠️ Limits
 
 - **Windows only.**
-- **The Claude app's box is found through Windows UI Automation**, where it is named "Prompt". A Claude app update
-  could change that. Until Parley is updated, set `target = "cursor"` and click into the box yourself.
-- **Parley replaces what's in the Claude box while you talk.** Text that was already there is kept at the front.
-  Don't type in the box while Parley is listening.
+- **The Claude app's box is found through Windows UI Automation**, where it's named "Prompt". A Claude app update could
+  change that. Until Utter is updated, set `target = "cursor"` and click into the box yourself.
+- **Utter replaces what's in the Claude box while you talk.** Text that was already there is kept at the front. Don't
+  type in the box while Utter is listening.
 - **The wake phrase and commands are English**, even when `language` is set to another language.
 - **"Hey Claude" is heard as common English words**, such as "hey cloud", so similar-sounding speech can wake it.
 
-## Uninstall
+## 🧹 Uninstall
 
-Double-click **`uninstall.cmd`**. It stops Parley, takes its hook out of Claude Code, and removes the shortcuts,
-the Python environment and the models. Your settings file is kept. Run `uninstall.ps1 -All` to remove that too.
+Double-click **`uninstall.cmd`**. It stops Utter, takes its hook out of Claude Code, and removes the shortcuts, the
+Python environment and the models. Your settings file is kept. Run `uninstall.ps1 -All` to remove that too.
 
-## How it works
+## 🛠️ How it works
 
-```text
-microphone ──► Vosk (wake phrase)  or  Ctrl+Alt+H
-                    │
-                    ▼
-        faster-whisper base.en (live words, every second) ──► Claude box / strip
-                    │  "send it"
-                    ▼
-        faster-whisper small.en (final words, word list, fillers out) ──► type ──► Enter
-Claude answers ──► Claude Code Stop hook ──► Edge or Windows voice ──► speakers
+```mermaid
+flowchart LR
+    mic([🎙️ Microphone]) --> wake{{Vosk<br/>wake phrase}}
+    key([⌨️ Ctrl+Alt+H]) --> listen
+    wake --> listen[faster-whisper base.en<br/>live words, every second]
+    listen --> where{Claude app<br/>in front?}
+    where -- yes --> box[Claude message box<br/>typed live]
+    where -- no --> strip[Status strip<br/>then typed at the cursor]
+    listen -- "…send it" --> final[faster-whisper small.en<br/>final words, word list, fillers out]
+    final --> enter([⏎ Send])
+    answer([Claude's answer]) --> hook[Claude Code Stop hook] --> voice[Edge or Windows voice] --> spk([🔊 Speakers])
 ```
+
+<details>
+<summary><b>The code</b></summary>
+
+<br>
 
 | File | Job |
 | --- | --- |
-| `src/parley/app.py` | Listening loop and one message, start to finish; the commands |
-| `src/parley/targets.py` | Where the words go: the Claude box, or wherever the cursor is |
-| `src/parley/words.py` | Commands, the send phrase, spelling, fillers and replacements |
-| `src/parley/voice.py` | Edge and Windows voices, beeps |
-| `src/parley/hotkey.py` | The keyboard shortcut |
-| `src/parley/ui.py` | Status strip and tray icon |
-| `src/parley/speak_reply.py` | The Claude Code hook that reads answers aloud |
-| `src/parley/setup.py` | Models, hook, shortcuts, microphone check |
-| `src/parley/settings.py` | Settings and file locations |
+| `src/utter/app.py` | Listening loop and one message, start to finish; the commands |
+| `src/utter/targets.py` | Where the words go: the Claude box, or wherever the cursor is |
+| `src/utter/words.py` | Commands, the send phrase, spelling, fillers and replacements |
+| `src/utter/voice.py` | Edge and Windows voices, beeps |
+| `src/utter/hotkey.py` | The keyboard shortcut |
+| `src/utter/ui.py` | Status strip and tray icon |
+| `src/utter/speak_reply.py` | The Claude Code hook that reads answers aloud |
+| `src/utter/setup.py` | Models, hook, shortcuts, microphone check |
+| `src/utter/settings.py` | Settings and file locations |
 
 Run the tests with `python -m pytest`. `tests/test_listening.py` plays recorded speech through the whole listening
 loop. It runs when the speech models are installed and the internet is reachable, and is skipped otherwise.
 
-## Ideas borrowed from
+</details>
 
-The word list, filler removal and "type"/"correct" commands follow Windows Voice Access and Wispr Flow. The
-choice between "send on a phrase" and "send on a pause" follows mcp-voice-hooks. Typing at the cursor follows Bol.
-Checking unclear messages follows handsfree-claude.
+## 🙏 Ideas borrowed from
 
-## License
+The word list, filler removal and the "type" and "correct" commands follow Windows Voice Access and Wispr Flow. The
+choice between sending on a phrase or on a pause follows mcp-voice-hooks. Typing at the cursor follows Bol. Checking
+unclear messages follows handsfree-claude.
 
-MIT. See [LICENSE](LICENSE). The speech models are downloaded from their own projects under their own licenses:
-Vosk (Apache 2.0) and Whisper (MIT).
+## 📄 License
+
+MIT. See [LICENSE](LICENSE). The speech models are downloaded from their own projects under their own licenses: Vosk
+(Apache 2.0) and Whisper (MIT).
+
+<div align="center">
+
+<img src="https://capsule-render.vercel.app/api?type=waving&height=100&color=0:312E81,100:0F172A&section=footer" width="100%" alt=""/>
+
+</div>

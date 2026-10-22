@@ -1,10 +1,10 @@
-"""Tests never touch the real Parley folder. The speech models are borrowed from it when installed."""
+"""Tests never touch the real Utter folder. The speech models are borrowed from it when installed."""
 
 import os
 import tempfile
 from pathlib import Path
 
-_installed_models = Path.home() / ".parley" / "models"
-os.environ["PARLEY_HOME"] = tempfile.mkdtemp(prefix="parley-test-")
+_installed_models = Path.home() / ".utter" / "models"
+os.environ["UTTER_HOME"] = tempfile.mkdtemp(prefix="utter-test-")
 if _installed_models.exists():
-    os.environ.setdefault("PARLEY_MODELS", str(_installed_models))
+    os.environ.setdefault("UTTER_MODELS", str(_installed_models))

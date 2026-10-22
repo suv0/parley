@@ -1,4 +1,4 @@
-"""python -m parley [run | setup | doctor | uninstall]"""
+"""python -m utter [run | setup | doctor | uninstall]"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from . import settings as paths
 
 
 def wait_for_exit(pid: int, seconds: float = 15) -> None:
-    """Restart: let the old Parley quit (and free the microphone) before this one starts."""
+    """Restart: let the old Utter quit (and free the microphone) before this one starts."""
     kernel32 = ctypes.windll.kernel32
     handle = kernel32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
     if handle:
@@ -24,12 +24,12 @@ def wait_for_exit(pid: int, seconds: float = 15) -> None:
 def run(after: int = 0) -> int:
     paths.STATE.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(filename=paths.LOG, level=logging.INFO, format="%(asctime)s %(message)s", encoding="utf-8")
-    log = logging.getLogger("parley")
+    log = logging.getLogger("utter")
     if after:
         wait_for_exit(after)
 
     # One copy only: two would fight over the microphone and the message box.
-    ctypes.windll.kernel32.CreateMutexW(None, False, "Local\\ParleyVoiceForClaude")
+    ctypes.windll.kernel32.CreateMutexW(None, False, "Local\\UtterVoiceForClaude")
     if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
         log.info("already running")
         return 0
@@ -49,8 +49,8 @@ def run(after: int = 0) -> int:
         try:
             assistant.run()
         except Exception:
-            log.exception("Parley stopped")
-            assistant.show("problem", "Parley stopped. Open the log from the tray")
+            log.exception("Utter stopped")
+            assistant.show("problem", "Utter stopped. Open the log from the tray")
 
     threading.Thread(target=guarded, daemon=True).start()
     tray(settings)
@@ -59,9 +59,9 @@ def run(after: int = 0) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="parley", description="Hands-free voice for Claude on Windows.")
+    parser = argparse.ArgumentParser(prog="utter", description="Hands-free voice for Claude on Windows.")
     parser.add_argument("command", nargs="?", default="run", choices=["run", "setup", "doctor", "uninstall"])
-    parser.add_argument("--no-start", action="store_true", help="setup: don't start Parley at the end")
+    parser.add_argument("--no-start", action="store_true", help="setup: don't start Utter at the end")
     parser.add_argument("--after", type=int, default=0, help=argparse.SUPPRESS)  # restart: wait for this process
     args = parser.parse_args()
     if args.command == "run":

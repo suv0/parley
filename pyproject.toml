@@ -3,7 +3,7 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "parley"
+name = "utter"
 version = "0.2.0"
 description = "Hands-free voice for Claude on Windows: wake word or shortcut, live dictation, voice commands, spoken answers."
 readme = "README.md"
@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.scripts]
-parley = "parley.__main__:main"
+utter = "utter.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

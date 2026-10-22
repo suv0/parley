@@ -1,10 +1,10 @@
 """Where the words go: the Claude desktop app's message box, or wherever your cursor is.
 
 The Claude box: Windows UI Automation shows it as an Edit control named "Prompt" inside the
-window titled "Claude". Parley remembers where you last clicked one, then clicks there and
-pastes. Your words appear in it live, and Parley can read it back and change words in it.
+window titled "Claude". Utter remembers where you last clicked one, then clicks there and
+pastes. Your words appear in it live, and Utter can read it back and change words in it.
 
-The cursor: any other app (a terminal running Claude Code, an editor, a chat). Parley can't
+The cursor: any other app (a terminal running Claude Code, an editor, a chat). Utter can't
 read other apps, so the live words show on the strip only, and the final text is pasted once.
 
 Every UI Automation call runs on one thread, because COM needs that.
@@ -22,7 +22,7 @@ import time
 
 from . import settings as paths
 
-log = logging.getLogger("parley")
+log = logging.getLogger("utter")
 DESKTOP_CLASSES = {"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "NotifyIconOverflowWindow"}
 
 
@@ -164,7 +164,7 @@ def restore_clipboard(text: str | None) -> None:
 
 class Hands:
     """One thread for every UI Automation and keyboard call, plus a watcher that remembers
-    the Claude box you last clicked and the last window you used that isn't Parley's."""
+    the Claude box you last clicked and the last window you used that isn't Utter's."""
 
     def __init__(self, stopping: threading.Event) -> None:
         self.box_place = _saved_place()

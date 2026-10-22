@@ -1,6 +1,6 @@
 """Claude Code Stop hook: reads a short, plain version of Claude's last answer aloud.
 
-`parley setup` adds it to ~/.claude/settings.json as an async hook, so Claude never waits for it.
+`utter setup` adds it to ~/.claude/settings.json as an async hook, so Claude never waits for it.
 It drops code, tables, links and markdown, and a new answer stops the one still playing.
 """
 
@@ -85,7 +85,7 @@ def main() -> None:
     paths.STATE.mkdir(parents=True, exist_ok=True)
     paths.LAST_ANSWER.write_text(speech, encoding="utf-8")  # for "repeat that"
     audio = make_audio(speech, settings, paths.STATE / f"answer-{os.getpid()}")
-    if mic_is_open():  # never talk while Parley is recording you; the mic would hear it
+    if mic_is_open():  # never talk while Utter is recording you; the mic would hear it
         audio.unlink(missing_ok=True)
         return
     play_as_answer(audio, delete_after=True)

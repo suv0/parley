@@ -14,10 +14,10 @@ from pathlib import Path
 from . import settings as paths
 
 VOSK_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
-HOOK_MARK = "parley.speak_reply"
+HOOK_MARK = "utter.speak_reply"
 CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
 PROGRAMS = Path(os.environ.get("APPDATA") or Path.home() / "AppData/Roaming") / "Microsoft/Windows/Start Menu/Programs"
-SHORTCUTS = [PROGRAMS / "Startup" / "Parley.lnk", PROGRAMS / "Parley.lnk"]
+SHORTCUTS = [PROGRAMS / "Startup" / "Utter.lnk", PROGRAMS / "Utter.lnk"]
 
 
 def step(text: str) -> None:
@@ -87,7 +87,7 @@ def hook_command() -> str:
 
 
 def with_hook(claude_settings: dict, command: str) -> dict:
-    """Claude's settings with Parley's Stop hook added once. Every other hook stays as it was."""
+    """Claude's settings with Utter's Stop hook added once. Every other hook stays as it was."""
     out = without_hook(claude_settings)
     stop = out.setdefault("hooks", {}).setdefault("Stop", [])
     stop.append({"hooks": [{"type": "command", "command": command, "timeout": 60, "async": True}]})
@@ -95,7 +95,7 @@ def with_hook(claude_settings: dict, command: str) -> dict:
 
 
 def without_hook(claude_settings: dict) -> dict:
-    """Claude's settings with Parley's Stop hook taken out (and any group it leaves empty)."""
+    """Claude's settings with Utter's Stop hook taken out (and any group it leaves empty)."""
     out = json.loads(json.dumps(claude_settings))
     hooks = out.get("hooks")
     if not isinstance(hooks, dict) or not isinstance(hooks.get("Stop"), list):
@@ -121,7 +121,7 @@ def change_claude_settings(change) -> None:
     if CLAUDE_SETTINGS.exists():
         text = CLAUDE_SETTINGS.read_text(encoding="utf-8")
         current = json.loads(text) if text.strip() else {}
-        shutil.copyfile(CLAUDE_SETTINGS, CLAUDE_SETTINGS.with_name("settings.json.parley-backup"))
+        shutil.copyfile(CLAUDE_SETTINGS, CLAUDE_SETTINGS.with_name("settings.json.utter-backup"))
     new = change(current)
     if new == current:
         return
@@ -157,12 +157,12 @@ def add_shortcuts() -> None:
         script += (
             f"New-Item -ItemType Directory -Force {ps_quote(path.parent)} | Out-Null;"
             f"$l=$s.CreateShortcut({ps_quote(path)});"
-            f"$l.TargetPath={ps_quote(python_exe(windowless=True))};$l.Arguments='-m parley';"
-            f"$l.WorkingDirectory={ps_quote(paths.DATA)};$l.Description='Parley: hands-free voice for Claude';"
+            f"$l.TargetPath={ps_quote(python_exe(windowless=True))};$l.Arguments='-m utter';"
+            f"$l.WorkingDirectory={ps_quote(paths.DATA)};$l.Description='Utter: hands-free voice for Claude';"
             "$l.Save();"
         )
     powershell(script)
-    print("Parley starts when Windows starts, and is in the Start menu.")
+    print("Utter starts when Windows starts, and is in the Start menu.")
 
 
 def remove_shortcuts() -> None:
@@ -176,9 +176,9 @@ def shortcut_exists() -> bool:
 
 
 def start_app() -> None:
-    subprocess.Popen([str(python_exe(windowless=True)), "-m", "parley"], cwd=paths.DATA,
+    subprocess.Popen([str(python_exe(windowless=True)), "-m", "utter"], cwd=paths.DATA,
                      creationflags=subprocess.DETACHED_PROCESS)
-    print("Parley is running. Look for the small strip at the bottom right of your screen.")
+    print("Utter is running. Look for the small strip at the bottom right of your screen.")
 
 
 def stop_app() -> None:
@@ -211,7 +211,7 @@ Windows is blocking the microphone. Open  Settings > Privacy & security > Microp
   - Microphone access
   - Let apps access your microphone
   - Let desktop apps access your microphone   (and Python, if it is listed)
-Then run:  install.ps1  again, or start Parley from the Start menu."""
+Then run:  install.ps1  again, or start Utter from the Start menu."""
 
 
 def install(start: bool = True) -> int:
@@ -243,7 +243,7 @@ def uninstall() -> int:
     stop_app()
     remove_hook()
     remove_shortcuts()
-    print("Parley is stopped and removed from Claude Code and the Start menu.")
+    print("Utter is stopped and removed from Claude Code and the Start menu.")
     return 0
 
 

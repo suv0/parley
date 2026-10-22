@@ -7,7 +7,7 @@ import logging
 import threading
 from ctypes import wintypes
 
-log = logging.getLogger("parley")
+log = logging.getLogger("utter")
 
 MODIFIERS = {"alt": 0x1, "ctrl": 0x2, "control": 0x2, "shift": 0x4, "win": 0x8}
 NO_REPEAT = 0x4000
