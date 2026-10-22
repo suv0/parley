@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "parley"
+version = "0.1.0"
+description = "Hands-free voice for the Claude desktop app on Windows: wake word, live dictation, spoken answers."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+classifiers = ["Operating System :: Microsoft :: Windows", "License :: OSI Approved :: MIT License"]
+dependencies = [
+  "edge-tts>=7.0",
+  "faster-whisper>=1.1",
+  "numpy>=1.26",
+  "pillow>=10",
+  "pystray>=0.19",
+  "pywin32>=306",
+  "pywinauto>=0.6.8",
+  "sounddevice>=0.4.6",
+  "vosk>=0.3.45",
+]
+
+[project.scripts]
+parley = "parley.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
