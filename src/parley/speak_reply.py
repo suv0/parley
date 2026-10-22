@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 from . import settings as paths
-from .voice import make_mp3, play, stop_answer
+from .voice import make_audio, play_as_answer
 
 
 def last_reply(payload: dict) -> str:
@@ -82,14 +82,13 @@ def main() -> None:
     speech = to_speech(last_reply(payload), settings.max_spoken_chars)
     if len(speech) < 3:
         return
-    mp3 = paths.STATE / f"answer-{os.getpid()}.mp3"
-    make_mp3(speech, settings.voice, mp3)
+    paths.STATE.mkdir(parents=True, exist_ok=True)
+    paths.LAST_ANSWER.write_text(speech, encoding="utf-8")  # for "repeat that"
+    audio = make_audio(speech, settings, paths.STATE / f"answer-{os.getpid()}")
     if mic_is_open():  # never talk while Parley is recording you; the mic would hear it
-        mp3.unlink(missing_ok=True)
+        audio.unlink(missing_ok=True)
         return
-    stop_answer()
-    player = play(mp3, wait=False, delete_after=True)
-    paths.PLAYER_PID.write_text(str(player.pid))
+    play_as_answer(audio, delete_after=True)
 
 
 if __name__ == "__main__":

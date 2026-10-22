@@ -1,0 +1,226 @@
+"""Parley from wake phrase to sent message, with recorded speech instead of a microphone.
+
+The speech is made with the Edge voice, so these tests need the internet and the installed
+speech models (install.ps1). Without them they are skipped.
+"""
+
+from __future__ import annotations
+
+import os
+
+import pytest
+
+np = pytest.importorskip("numpy")
+pytest.importorskip("faster_whisper")
+pytest.importorskip("vosk")
+pytest.importorskip("edge_tts")
+
+from parley import app as app_module  # noqa: E402
+from parley import settings as paths  # noqa: E402
+from parley.app import BLOCK, RATE, Assistant  # noqa: E402
+
+if not os.environ.get("PARLEY_MODELS") or not paths.VOSK_MODEL.exists():
+    pytest.skip("speech models not installed", allow_module_level=True)
+
+SPEECH_CACHE: dict[str, np.ndarray] = {}
+
+
+def speech(text: str) -> np.ndarray:
+    """`text` spoken by the Edge voice, as 16 kHz 16-bit samples."""
+    if text not in SPEECH_CACHE:
+        import asyncio
+        import tempfile
+
+        import av
+        import edge_tts
+
+        out = os.path.join(tempfile.mkdtemp(), "speech.mp3")
+        asyncio.run(edge_tts.Communicate(text, "en-US-AndrewMultilingualNeural").save(out))
+        resampler = av.AudioResampler(format="s16", layout="mono", rate=RATE)
+        parts = []
+        with av.open(out) as container:
+            for frame in container.decode(audio=0):
+                parts += [f.to_ndarray().reshape(-1) for f in resampler.resample(frame)]
+        parts += [f.to_ndarray().reshape(-1) for f in resampler.resample(None)]
+        SPEECH_CACHE[text] = np.concatenate(parts).astype(np.int16)
+    return SPEECH_CACHE[text]
+
+
+def silence(seconds: float) -> np.ndarray:
+    return np.zeros(int(seconds * RATE), dtype=np.int16)
+
+
+class FakeTarget:
+    """Stands in for the Claude box (live typing, readable) or another app (paste once)."""
+
+    def __init__(self, live: bool, text: str = "") -> None:
+        self.live_typing = self.can_read = live
+        self.name = "Claude app" if live else "Notepad"
+        self.text = text
+        self.writes: list[str] = []
+        self.sent = 0
+        self.escaped = 0
+        self.typed = ""
+
+    def read(self):
+        return "", self.text if self.live_typing else ""
+
+    def write(self, text: str) -> str:
+        self.writes.append(text)
+        if self.live_typing:
+            self.text = text
+        elif text:
+            self.text += text
+            self.typed = text
+        return ""
+
+    def send(self) -> str:
+        if not self.text:
+            return "empty"
+        self.sent += 1
+        return ""
+
+    def escape(self) -> str:
+        self.escaped += 1
+        return ""
+
+
+class FakeHands:
+    def __init__(self, target: FakeTarget) -> None:
+        self.target = target
+
+    def pick(self, _where: str) -> FakeTarget:
+        return self.target
+
+
+@pytest.fixture(scope="module")
+def models():
+    a = Assistant(paths.Settings(), speak=False)
+    assert a.load_models()
+    return a.live_model, a.final_model, a.wake
+
+
+def run(models, target: FakeTarget, *sounds: np.ndarray, **settings) -> Assistant:
+    a = Assistant(paths.Settings(**settings), hands=FakeHands(target), speak=False)
+    a.live_model, a.final_model, a.wake = models
+    a.wake.Reset()
+    audio = np.concatenate([silence(0.5), *sounds])
+    for start in range(0, len(audio) - BLOCK + 1, BLOCK):
+        a.audio.put(audio[start:start + BLOCK])
+    a.listen(until_empty=True)
+    return a
+
+
+def statuses() -> list[str]:
+    out = []
+    while not app_module.ui_events.empty():
+        kind, text = app_module.ui_events.get_nowait()
+        if kind == "status":
+            out.append(text.split("\t")[1])
+    return out
+
+
+def wake():
+    return speech("Hey Claude."), silence(1.0)
+
+
+def test_a_message_ending_in_send_it_is_typed_live_and_sent(models):
+    box = FakeTarget(live=True)
+    run(models, box, *wake(), speech("Fix the login page on the website. Send it."), silence(3))
+    assert box.sent == 1
+    assert box.text.lower().startswith("fix the login page on the website")
+    assert "send it" not in box.text.lower()
+    assert len(box.writes) >= 2  # live words, then the final text
+
+
+def test_quiet_leaves_the_message_unsent(models):
+    box = FakeTarget(live=True)
+    run(models, box, *wake(), speech("Check the failing tests in the payment module."), silence(16))
+    assert box.sent == 0
+    assert "payment module" in box.text.lower()
+
+
+def test_a_pause_sends_in_pause_mode(models):
+    box = FakeTarget(live=True)
+    run(models, box, *wake(), speech("Please run the unit tests."), silence(3), send_mode="pause")
+    assert box.sent == 1
+    assert "unit tests" in box.text.lower()
+
+
+def test_other_apps_get_the_words_once_at_the_end(models):
+    notepad = FakeTarget(live=False)
+    run(models, notepad, *wake(), speech("Write a short poem about rain. Send it."), silence(3))
+    assert len(notepad.writes) == 1
+    assert "poem about rain" in notepad.text.lower()
+    assert notepad.sent == 1
+
+
+def test_scratch_that_clears_the_box(models):
+    box = FakeTarget(live=True, text="Some old text")
+    run(models, box, *wake(), speech("Scratch that."), silence(3))
+    assert box.text == ""
+    assert box.sent == 0
+
+
+def test_stop_presses_escape_and_keeps_the_box(models):
+    box = FakeTarget(live=True, text="Draft")
+    run(models, box, *wake(), speech("Stop."), silence(3))
+    assert box.escaped == 1
+    assert box.text == "Draft"
+
+
+def test_type_stop_types_the_word(models):
+    box = FakeTarget(live=True)
+    run(models, box, *wake(), speech("Type stop."), silence(16))
+    assert box.escaped == 0
+    assert box.text.lower().strip(".") == "stop"
+
+
+def test_change_fixes_a_word_in_the_box(models):
+    box = FakeTarget(live=True, text="Deploy the app to staging today")
+    run(models, box, *wake(), speech("Change staging to production."), silence(3))
+    assert box.text == "Deploy the app to production today"
+
+
+def test_spell_types_letters(models):
+    box = FakeTarget(live=True, text="Repo name:")
+    run(models, box, *wake(), speech("Spell kilo, uniform, bravo, echo."), silence(3))
+    assert box.text.lower() == "repo name: kube"
+
+
+def test_read_it_back_and_repeat_need_no_typing(models):
+    box = FakeTarget(live=True, text="Hello there")
+    statuses()
+    run(models, box, *wake(), speech("Read it back."), silence(3))
+    assert "Reading your message back" in statuses()
+    assert box.text == "Hello there"
+
+
+def test_replacements_fix_words_it_gets_wrong(models):
+    box = FakeTarget(live=True)
+    run(models, box, *wake(), speech("Open the payment page. Send it."), silence(3),
+        replacements={"payment page": "PaymentPage.tsx"})
+    assert "PaymentPage.tsx" in box.text
+
+
+def test_silence_after_waking_types_nothing(models):
+    box = FakeTarget(live=True, text="Keep me")
+    run(models, box, *wake(), silence(9))
+    assert box.text == "Keep me"
+    assert box.sent == 0
+
+
+def test_without_the_wake_phrase_nothing_happens(models):
+    box = FakeTarget(live=True)
+    run(models, box, speech("Fix the login page. Send it."), silence(3))
+    assert box.writes == [] and box.sent == 0
+
+
+def test_an_unclear_message_is_typed_but_not_sent(models, monkeypatch):
+    box = FakeTarget(live=True)
+    a = Assistant(paths.Settings(), hands=FakeHands(box), speak=False)
+    a.final_model = None
+    monkeypatch.setattr(a, "transcribe", lambda *_args, **_kw: ("Mumble the grumble", -1.4))
+    a.finish(box, "", "send", [silence(1)], "Mumble the grumble")
+    assert box.text == "Mumble the grumble"
+    assert box.sent == 0

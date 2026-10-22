@@ -6,28 +6,40 @@ import json
 import os
 import queue
 import subprocess
+import sys
 
 from . import settings as paths
 from .app import paused, stopping, ui_events
 from .voice import stop_answer
 
 COLORS = {"idle": "#22a06b", "listening": "#e5484d", "working": "#f5a524", "paused": "#8b8b8b", "problem": "#f5a524"}
-BG, FG, DIM = "#1f1f1f", "#f2f2f2", "#a0a0a0"
+THEMES = {
+    # background, text, quiet text, button
+    "normal": ("#1f1f1f", "#f2f2f2", "#a0a0a0", "#333333"),
+    "contrast": ("#000000", "#ffffff", "#ffd400", "#333333"),
+}
 
 
 def help_lines(s: paths.Settings) -> list[tuple[str, str]]:
     wake = s.wake_name
     send = s.send_phrases[0] if s.send_phrases else "send it"
+    start = f"{wake}  (or {s.hotkey})" if s.hotkey else wake
     return [
-        (wake, "then talk"),
-        (f"…{send}", "send your message"),
-        (f"{wake}, send it", "send what's in the box"),
+        (start, "then talk"),
+        (f"…{send}", "send your message" + (f" (or {s.hotkey} again)" if s.hotkey else "")),
+        (f"{wake}, send it", "send what's typed"),
         (f"{wake}, scratch that", "clear the box"),
-        (f"{wake}, quiet", "stop reading an answer"),
+        (f"{wake}, read it back", "hear your message"),
+        (f"{wake}, change X to Y", "fix a word"),
+        (f"{wake}, spell A B C", "type letters"),
+        (f"{wake}, type stop", "type a command word"),
+        (f"{wake}, repeat that", "hear the answer again"),
+        (f"{wake}, quiet", "stop reading the answer"),
         (f"{wake}, stop", "stop Claude (presses Esc)"),
         (f"{wake}, voice off / on", "spoken answers"),
         (f"{wake}, help", "show or hide this"),
-        ("", "Click a Claude message box once so I know where to type. Pauses never send."),
+        ("", "In the Claude app, click its message box once. Anywhere else, words go where your cursor is."
+             + (" Pauses never send." if s.send_mode == "phrase" else "")),
     ]
 
 
@@ -35,36 +47,54 @@ def strip(s: paths.Settings) -> None:
     """Runs the strip on this thread until Quit."""
     import tkinter as tk
 
-    idle_text = f"Say “{s.wake_name}”"
+    bg, fg, dim, button = THEMES["contrast" if s.high_contrast else "normal"]
+    scale = 1.5 if s.strip_size == "large" else 1.0
+    size = lambda n: round(n * scale)  # noqa: E731
+    wrap = size(340)
+    idle_text = {"text": f"Say “{s.wake_name}”"}
+
     root = tk.Tk()
     root.title("Parley")
     root.overrideredirect(True)
     root.attributes("-topmost", True)
-    root.attributes("-alpha", 0.93)
-    root.configure(bg=BG)
+    root.attributes("-alpha", 1.0 if s.high_contrast else 0.93)
+    root.configure(bg=bg, highlightthickness=2 if s.high_contrast else 0, highlightbackground="#ffd400")
 
-    top = tk.Frame(root, bg=BG)
-    top.pack(fill="x", padx=10, pady=6)
-    dot = tk.Canvas(top, width=12, height=12, bg=BG, highlightthickness=0)
-    dot_id = dot.create_oval(1, 1, 11, 11, fill=COLORS["working"], outline="")
-    dot.pack(side="left", padx=(0, 8))
-    label = tk.Label(top, text="Starting up", bg=BG, fg=FG, font=("Segoe UI", 10), anchor="w")
+    top = tk.Frame(root, bg=bg)
+    top.pack(fill="x", padx=size(10), pady=size(6))
+    dot_px = size(12)
+    dot = tk.Canvas(top, width=dot_px, height=dot_px, bg=bg, highlightthickness=0)
+    dot_id = dot.create_oval(1, 1, dot_px - 1, dot_px - 1, fill=COLORS["working"], outline="")
+    dot.pack(side="left", padx=(0, size(8)))
+    label = tk.Label(top, text="Starting up", bg=bg, fg=fg, font=("Segoe UI", size(10)), anchor="w",
+                     justify="left", wraplength=wrap)
     label.pack(side="left", fill="x", expand=True)
-    help_btn = tk.Label(top, text=" ? ", bg="#333333", fg=FG, font=("Segoe UI", 9, "bold"), cursor="hand2")
-    help_btn.pack(side="right", padx=(8, 0))
+    help_btn = tk.Label(top, text=" ? ", bg=button, fg=fg, font=("Segoe UI", size(9), "bold"), cursor="hand2")
+    help_btn.pack(side="right", padx=(size(8), 0))
 
-    live = tk.Label(root, text="", bg=BG, fg=DIM, font=("Segoe UI", 9), anchor="w", justify="left", wraplength=320)
-    help_box = tk.Frame(root, bg=BG)
+    live = tk.Label(root, text="", bg=bg, fg=dim, font=("Segoe UI", size(9)), anchor="w", justify="left",
+                    wraplength=wrap)
+    help_box = tk.Frame(root, bg=bg)
     for left, right in help_lines(s):
-        row = tk.Frame(help_box, bg=BG)
+        row = tk.Frame(help_box, bg=bg)
         row.pack(fill="x")
         if left:
-            tk.Label(row, text=left, bg=BG, fg=FG, font=("Segoe UI", 9, "bold"), anchor="w", width=24).pack(side="left")
-            tk.Label(row, text=right, bg=BG, fg=DIM, font=("Segoe UI", 9), anchor="w").pack(side="left")
+            tk.Label(row, text=left, bg=bg, fg=fg, font=("Segoe UI", size(9), "bold"), anchor="w",
+                     width=30).pack(side="left")
+            tk.Label(row, text=right, bg=bg, fg=dim, font=("Segoe UI", size(9)), anchor="w").pack(side="left")
         else:
-            tk.Label(row, text=right, bg=BG, fg=DIM, font=("Segoe UI", 8, "italic"), anchor="w",
-                     wraplength=320, justify="left").pack(side="left", pady=(4, 0))
+            tk.Label(row, text=right, bg=bg, fg=dim, font=("Segoe UI", size(8), "italic"), anchor="w",
+                     wraplength=size(420), justify="left").pack(side="left", pady=(size(4), 0))
     showing_help = {"on": False}
+
+    def keep_on_screen() -> None:
+        root.update_idletasks()
+        x, y = root.winfo_x(), root.winfo_y()
+        right = root.winfo_vrootwidth() if root.winfo_vrootwidth() > 1 else root.winfo_screenwidth()
+        bottom = root.winfo_screenheight()
+        x = min(x, right - root.winfo_reqwidth() - 8)
+        y = min(y, bottom - root.winfo_reqheight() - 48)
+        root.geometry(f"+{max(0, x)}+{max(0, y)}")
 
     def place() -> None:
         root.update_idletasks()
@@ -80,9 +110,10 @@ def strip(s: paths.Settings) -> None:
     def toggle_help(_event=None) -> None:
         showing_help["on"] = not showing_help["on"]
         if showing_help["on"]:
-            help_box.pack(fill="x", padx=10, pady=(0, 8))
+            help_box.pack(fill="x", padx=size(10), pady=(0, size(8)))
         else:
             help_box.pack_forget()
+        keep_on_screen()
 
     help_btn.bind("<Button-1>", toggle_help)
 
@@ -113,10 +144,11 @@ def strip(s: paths.Settings) -> None:
         dot.itemconfig(dot_id, fill=COLORS.get(state, COLORS["working"]))
         label.config(text=text)
         if words:
-            live.config(text=("…" + words[-160:]) if len(words) > 160 else words)
-            live.pack(fill="x", padx=10, pady=(0, 6), before=help_box if showing_help["on"] else None)
+            live.config(text=("…" + words[-200:]) if len(words) > 200 else words)
+            live.pack(fill="x", padx=size(10), pady=(0, size(6)), before=help_box if showing_help["on"] else None)
         else:
             live.pack_forget()
+        keep_on_screen()
 
     def poll() -> None:
         try:
@@ -124,12 +156,16 @@ def strip(s: paths.Settings) -> None:
                 kind, text = ui_events.get_nowait()
                 if kind == "status":
                     state, msg, words = (text.split("\t") + ["", ""])[:3]
+                    if state == "idle" and msg.startswith("Say “"):
+                        idle_text["text"] = msg
                     set_state(state, msg, words)
                     if idle_timer["id"]:
                         root.after_cancel(idle_timer["id"])
                         idle_timer["id"] = None
                 elif kind == "idle-later":
-                    idle_timer["id"] = root.after(4000, lambda: set_state("idle", idle_text, ""))
+                    if text:
+                        idle_text["text"] = text
+                    idle_timer["id"] = root.after(5000, lambda: set_state("idle", idle_text["text"], ""))
                 elif kind == "help":
                     toggle_help()
                 elif kind == "visible":
@@ -144,6 +180,13 @@ def strip(s: paths.Settings) -> None:
     place()
     root.after(150, poll)
     root.mainloop()
+
+
+def restart() -> None:
+    """Starts a new Parley that waits for this one to quit (so a settings change takes effect)."""
+    exe = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    subprocess.Popen([exe if os.path.exists(exe) else sys.executable, "-m", "parley", "run", "--after",
+                      str(os.getpid())], cwd=paths.DATA)
 
 
 def tray(s: paths.Settings) -> None:
@@ -162,7 +205,8 @@ def tray(s: paths.Settings) -> None:
         if paused.is_set():
             paused.clear()
             icon.icon = image(COLORS["idle"])
-            ui_events.put(("status", f"idle\tSay “{s.wake_name}”\t"))
+            ui_events.put(("idle-later", ""))
+            ui_events.put(("status", "idle\tListening again\t"))
         else:
             paused.set()
             icon.icon = image(COLORS["paused"])
@@ -184,6 +228,10 @@ def tray(s: paths.Settings) -> None:
         ui_events.put(("quit", ""))
         icon.stop()
 
+    def restart_app(icon, item):
+        restart()
+        quit_app(icon, item)
+
     item = pystray.MenuItem
     icon = pystray.Icon(
         "parley",
@@ -201,6 +249,7 @@ def tray(s: paths.Settings) -> None:
                  lambda i, _: subprocess.run(["explorer", "ms-settings:privacy-microphone"])),
             item("Open the settings file", lambda i, _: open_path(paths.CONFIG_FILE)),
             item("Open the log", lambda i, _: open_path(paths.LOG)),
+            item("Restart (after changing settings)", restart_app),
             pystray.Menu.SEPARATOR,
             item("Quit", quit_app),
         ),

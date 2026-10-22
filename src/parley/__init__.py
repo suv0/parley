@@ -1,3 +1,3 @@
-"""Parley: hands-free voice for the Claude desktop app on Windows."""
+"""Parley: hands-free voice for Claude on Windows."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

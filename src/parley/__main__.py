@@ -12,10 +12,21 @@ import threading
 from . import settings as paths
 
 
-def run() -> int:
+def wait_for_exit(pid: int, seconds: float = 15) -> None:
+    """Restart: let the old Parley quit (and free the microphone) before this one starts."""
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+    if handle:
+        kernel32.WaitForSingleObject(handle, int(seconds * 1000))
+        kernel32.CloseHandle(handle)
+
+
+def run(after: int = 0) -> int:
     paths.STATE.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(filename=paths.LOG, level=logging.INFO, format="%(asctime)s %(message)s", encoding="utf-8")
     log = logging.getLogger("parley")
+    if after:
+        wait_for_exit(after)
 
     # One copy only: two would fight over the microphone and the message box.
     ctypes.windll.kernel32.CreateMutexW(None, False, "Local\\ParleyVoiceForClaude")
@@ -51,9 +62,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="parley", description="Hands-free voice for Claude on Windows.")
     parser.add_argument("command", nargs="?", default="run", choices=["run", "setup", "doctor", "uninstall"])
     parser.add_argument("--no-start", action="store_true", help="setup: don't start Parley at the end")
+    parser.add_argument("--after", type=int, default=0, help=argparse.SUPPRESS)  # restart: wait for this process
     args = parser.parse_args()
     if args.command == "run":
-        return run()
+        return run(args.after)
     from . import setup
 
     if args.command == "setup":

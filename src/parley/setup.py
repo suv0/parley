@@ -35,7 +35,13 @@ def python_exe(windowless: bool = False) -> Path:
 
 def write_config() -> None:
     if paths.CONFIG_FILE.exists():
-        print(f"Keeping your settings: {paths.CONFIG_FILE}")
+        text = paths.CONFIG_FILE.read_text(encoding="utf-8")
+        added = paths.missing_settings_text(text)
+        if added:
+            paths.CONFIG_FILE.write_text(text.rstrip() + "\n\n" + added, encoding="utf-8")
+            print(f"Keeping your settings, and adding the new ones (with their defaults): {paths.CONFIG_FILE}")
+        else:
+            print(f"Keeping your settings: {paths.CONFIG_FILE}")
         return
     paths.DATA.mkdir(parents=True, exist_ok=True)
     paths.CONFIG_FILE.write_text(paths.default_file_text(), encoding="utf-8")
@@ -50,7 +56,7 @@ def download_models(settings: paths.Settings) -> None:
         print("Wake-word model: already here")
     else:
         zip_path = paths.MODELS / "vosk.zip"
-        print("Wake-word model (about 40 MB)…", flush=True)
+        print("Wake-word model (about 40 MB)...", flush=True)
 
         shown = {"tens": -1}
 
@@ -67,9 +73,9 @@ def download_models(settings: paths.Settings) -> None:
 
     from faster_whisper import download_model
 
-    sizes = {"tiny.en": "75 MB", "base.en": "140 MB", "small.en": "460 MB", "medium.en": "1.5 GB"}
-    for name in dict.fromkeys([settings.live_model, settings.final_model]):
-        print(f"Speech model {name} (about {sizes.get(name, 'a few hundred MB')}, once)…", flush=True)
+    sizes = {"tiny": "75 MB", "base": "140 MB", "small": "460 MB", "medium": "1.5 GB"}
+    for name in dict.fromkeys([settings.model("live"), settings.model("final")]):
+        print(f"Speech model {name} (about {sizes.get(name.removesuffix('.en'), 'a few hundred MB')}, once)...", flush=True)
         download_model(name, cache_dir=str(paths.WHISPER_MODELS))
     print("Models ready.")
 
@@ -247,7 +253,7 @@ def doctor() -> int:
         ("Settings file", paths.CONFIG_FILE.exists()),
         ("Wake-word model", paths.VOSK_MODEL.exists()),
         *[(f"Speech model {m}", any(paths.WHISPER_MODELS.glob(f"models--*faster-whisper-{m}")))
-          for m in dict.fromkeys([settings.live_model, settings.final_model])],
+          for m in dict.fromkeys([settings.model("live"), settings.model("final")])],
         ("Read-aloud hook in Claude Code", CLAUDE_SETTINGS.exists() and HOOK_MARK in CLAUDE_SETTINGS.read_text("utf-8")),
         ("Starts with Windows", shortcut_exists()),
         ("Microphone", mic_works(settings)),
