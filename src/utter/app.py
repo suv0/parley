@@ -31,6 +31,10 @@ RATE = 16000
 BLOCK = 1600  # 0.1 s
 LIVE_EVERY = 1.0  # seconds of audio between live updates
 UNCLEAR = -0.85  # average log-probability below which Utter isn't sure it heard right
+LOCK_PAUSE = 0.8  # seconds of quiet that end a piece of speech, so its words are locked in
+LOCK_SHORTEST = 4.0  # a piece is at least this long, so short commands and phrases stay whole
+LOCK_LONGEST = 10.0  # seconds of speech without a pause before the finished part is locked anyway
+BEHIND = 10  # blocks waiting (1 s): live words skip an update to catch up
 
 paused = threading.Event()
 stopping = threading.Event()
@@ -70,11 +74,49 @@ STATUS = {
 }
 
 
+class Refiner:
+    """Runs the accurate final pass on each locked piece of a message in the background."""
+
+    def __init__(self, transcribe, chunks: list[np.ndarray]) -> None:
+        self.transcribe = transcribe
+        self.chunks = chunks  # the message's audio, growing as you talk
+        self.locked_at = 0  # blocks before this are locked in
+        self.jobs: queue.Queue = queue.Queue()
+        self.results: list[tuple[str, float]] = []
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def lock(self, upto: int) -> None:
+        if upto > self.locked_at:
+            self.results.append(("", 0.0))
+            self.jobs.put((len(self.results) - 1, self.chunks[self.locked_at:upto]))
+            self.locked_at = upto
+
+    def close(self) -> None:
+        self.jobs.put((None, None))
+
+    def _run(self) -> None:
+        while True:
+            index, part = self.jobs.get()
+            if index is None:
+                return
+            try:
+                self.results[index] = self.transcribe(part)
+            except Exception:
+                log.exception("final pass failed")
+            finally:
+                self.jobs.task_done()
+
+    def wait(self) -> list[tuple[str, float]]:
+        self.jobs.join()
+        return self.results
+
+
 class Assistant:
     def __init__(self, settings: paths.Settings, hands=None, speak: bool = True) -> None:
         self.settings = settings
         self.hands = hands
         self.speak = speak  # False in tests: no beeps or spoken replies
+        self.realtime = True  # False in tests, which feed recorded audio faster than real time
         self.idle_text = f"Say “{settings.wake_name}”" + (f" or press {settings.hotkey}" if settings.hotkey else "")
         self.audio: queue.Queue[np.ndarray] = queue.Queue()
         self.ears = threading.Event()  # set = keep what the mic hears
@@ -252,17 +294,27 @@ class Assistant:
                 self.beep("stop")
             self.finish(target, prefix, how, chunks, live)
         finally:
+            if getattr(self, "refiner", None) is not None:  # the message ended without a final pass
+                self.refiner.close()
+                self.refiner = None
             restore_clipboard(saved_clipboard)
             paths.LISTENING_FLAG.unlink(missing_ok=True)
 
     def hear(self, target, prefix: str, listening: str) -> tuple[str, list[np.ndarray], str]:
-        """Collects the message. How it ended: send | pause | leave | command | nothing."""
+        """Collects the message. How it ended: send | pause | leave | command | nothing.
+
+        Finished speech is locked in and never transcribed again: live updates only look at the
+        unfinished tail, so they cost the same after three minutes as after three seconds. Each
+        locked piece gets the accurate final pass in the background while you keep talking.
+        """
         s = self.settings
         chunks: list[np.ndarray] = []
+        self.refiner = refiner = Refiner(lambda part: self.transcribe(self.final_model, part, beam_size=5), chunks)
         heard_at = None  # seconds of audio at the last loud block
         next_update = LIVE_EVERY
-        live = ""
-        last_audio = time.time()
+        live = locked = tail = ""
+        fresh = False  # loud audio the live words don't include yet
+        started = last_audio = time.time()
         while True:
             try:
                 block = self.audio.get(timeout=0.5)
@@ -275,6 +327,7 @@ class Assistant:
             now = len(chunks) * BLOCK / RATE
             if float(np.sqrt(np.mean((block.astype(np.float32) / 32768) ** 2))) > s.speaking_level:
                 heard_at = now
+                fresh = True
             if self.hotkey.is_set():
                 self.hotkey.clear()
                 return ("send" if heard_at is not None else "nothing"), chunks, live
@@ -285,14 +338,32 @@ class Assistant:
             quiet = now - heard_at
             if now >= next_update:
                 next_update = now + LIVE_EVERY
-                fresh, _ = self.transcribe(self.live_model, chunks, beam_size=1)
-                if fresh and fresh != live:
-                    live = fresh
+                behind = self.realtime and self.audio.qsize() > BEHIND
+                if fresh and not behind:  # when behind, skip this update rather than fall further back
+                    fresh = False
+                    segments = self.segments(self.live_model, chunks[refiner.locked_at:], beam_size=1)
+                    tail = " ".join(seg.text.strip() for seg in segments).strip()
+                    if (len(chunks) - refiner.locked_at) * BLOCK / RATE > LOCK_LONGEST and len(segments) > 1:
+                        # A long stretch without a pause: lock everything before the last segment.
+                        cut = refiner.locked_at + int(segments[-1].start * RATE / BLOCK)
+                        locked = joined(locked, " ".join(seg.text.strip() for seg in segments[:-1]))
+                        refiner.lock(cut)
+                        tail = segments[-1].text.strip()
+                long_enough = (len(chunks) - refiner.locked_at) * BLOCK / RATE >= LOCK_SHORTEST
+                if tail and not fresh and quiet >= LOCK_PAUSE and long_enough:  # a pause ends a piece
+                    locked = joined(locked, tail)
+                    refiner.lock(len(chunks))
+                    tail = ""
+                words = joined(locked, tail)
+                if words and words != live:
+                    live = words
                     if target.live_typing and not parse(live, s.wake_phrases)[0]:
                         target.write(joined(prefix, tidy(live, s.remove_fillers, s.replacements)))
                     self.show("listening", listening, live)
                 if ends_with_send(live, s.send_phrases):
                     return "send", chunks, live
+            if self.realtime and time.time() - started > s.max_message_seconds + 30:
+                return "leave", chunks, live
             is_command = bool(live and parse(live, s.wake_phrases)[0])
             if is_command and quiet >= s.command_pause_seconds:
                 return "command", chunks, live
@@ -309,7 +380,7 @@ class Assistant:
             self.say("nothing")
             return
         self.show("working", "Getting your words right")
-        final, sureness = self.transcribe(self.final_model, chunks, beam_size=5)
+        final, sureness = self.final_words(chunks)
         final = final or live
         log.info("final: %r (%s, sureness %.2f)", final, how, sureness)
         command, arg = parse(final, s.wake_phrases)
@@ -337,15 +408,33 @@ class Assistant:
             self.show("idle", f"Left unsent. Say “{s.wake_name}, send it”")
             self.say("left")
 
-    def transcribe(self, model, chunks: list[np.ndarray], beam_size: int) -> tuple[str, float]:
-        """(the words, how sure: the average log-probability, 0 = certain)."""
+    def final_words(self, chunks: list[np.ndarray]) -> tuple[str, float]:
+        """The accurate transcript: the locked pieces (mostly done already) plus the tail."""
+        refiner, self.refiner = getattr(self, "refiner", None), None
+        if refiner is None or refiner.chunks is not chunks:
+            return self.transcribe(self.final_model, chunks, beam_size=5)
+        refiner.lock(len(chunks))
+        parts = [part for part in refiner.wait() if part[0]]
+        refiner.close()
+        if not parts:
+            return "", 0.0
+        return " ".join(text for text, _ in parts), sum(sure for _, sure in parts) / len(parts)
+
+    def segments(self, model, chunks: list[np.ndarray], beam_size: int) -> list:
+        """What the model heard in `chunks`, one segment per phrase."""
+        if not chunks:
+            return []
         s = self.settings
         sound = np.concatenate(chunks).astype(np.float32) / 32768
-        segments, _ = model.transcribe(
+        found, _ = model.transcribe(
             sound, language=s.language, beam_size=beam_size, vad_filter=True,
             hotwords=", ".join(s.words) if s.words else None,
         )
-        segments = list(segments)
+        return list(found)
+
+    def transcribe(self, model, chunks: list[np.ndarray], beam_size: int) -> tuple[str, float]:
+        """(the words, how sure: the average log-probability, 0 = certain)."""
+        segments = self.segments(model, chunks, beam_size)
         text = " ".join(seg.text.strip() for seg in segments).strip()
         sureness = sum(seg.avg_logprob for seg in segments) / len(segments) if segments else 0.0
         return text, sureness

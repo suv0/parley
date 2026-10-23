@@ -102,13 +102,18 @@ def models():
 
 def run(models, target: FakeTarget, *sounds: np.ndarray, **settings) -> Assistant:
     a = Assistant(paths.Settings(**settings), hands=FakeHands(target), speak=False)
+    a.realtime = False
     a.live_model, a.final_model, a.wake = models
     a.wake.Reset()
+    feed(a, *sounds)
+    a.listen(until_empty=True)
+    return a
+
+
+def feed(a: Assistant, *sounds: np.ndarray) -> None:
     audio = np.concatenate([silence(0.5), *sounds])
     for start in range(0, len(audio) - BLOCK + 1, BLOCK):
         a.audio.put(audio[start:start + BLOCK])
-    a.listen(until_empty=True)
-    return a
 
 
 def statuses() -> list[str]:
@@ -224,3 +229,48 @@ def test_an_unclear_message_is_typed_but_not_sent(models, monkeypatch):
     a.finish(box, "", "send", [silence(1)], "Mumble the grumble")
     assert box.text == "Mumble the grumble"
     assert box.sent == 0
+
+
+LONG_MESSAGE = (
+    "I want to change how the settings page works. Right now every change saves at once, and people "
+    "lose work when they make a mistake. Add a save button at the bottom of the page. Keep the old values "
+    "until the person presses it. Show a short message after saving, so they know it worked. "
+    "If they leave the page with changes that are not saved, ask them first. "
+    "The colour settings should show a preview before they are saved. "
+    "Please also check the tests for the settings page and add new ones for the save button. "
+    "When you are done, tell me which files changed and anything you were not sure about. "
+    "One more thing. The page is slow on old laptops, so look at why it loads every setting twice. "
+    "Fix that if it is simple, and leave a note if it is not. Send it."
+)
+
+
+def test_a_long_message_never_re_transcribes_what_is_already_settled(models):
+    """The typing-lag fix: live updates only look at the unfinished tail, however long you talk."""
+    box = FakeTarget(live=True)
+    a = Assistant(paths.Settings(), hands=FakeHands(box), speak=False)
+    a.realtime = False
+    a.live_model, a.final_model, a.wake = models
+    a.wake.Reset()
+    longest = []
+    segments = a.segments
+
+    def measured(model, chunks, beam_size):
+        if model is a.live_model:
+            longest.append(len(chunks) * BLOCK / RATE)
+        return segments(model, chunks, beam_size)
+
+    a.segments = measured
+    sentences = [speech(s.strip() + ".") for s in LONG_MESSAGE.split(".") if s.strip()]
+    spoken = []
+    for sound in sentences:
+        spoken += [sound, silence(0.8)]
+    feed(a, *wake(), *spoken, silence(3))
+    a.listen(until_empty=True)
+
+    total = sum(len(s) for s in sentences) / RATE
+    assert total > 40  # a long message
+    assert max(longest) < 16  # the live model never sees more than the unfinished tail
+    assert box.sent == 1
+    text = box.text.lower()
+    assert "save button" in text and "loads every setting twice" in text
+    assert "send it" not in text
