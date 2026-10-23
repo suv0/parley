@@ -4,7 +4,7 @@
   <AudioInput>Enable</AudioInput>
   <MappedFolders>
     <MappedFolder>
-      <HostFolder>C:\Users\shuvo\work\pet-projects\utter-sandbox-test</HostFolder>
+      <HostFolder>C:\utter\tools\sandbox</HostFolder>
       <SandboxFolder>C:\utter-test</SandboxFolder>
       <ReadOnly>false</ReadOnly>
     </MappedFolder>
