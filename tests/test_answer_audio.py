@@ -77,3 +77,25 @@ def test_startup_clears_old_leftover_answers_only():
     assert fresh.exists() and cached.exists()
     fresh.unlink()
     cached.unlink()
+
+
+def test_a_windows_voice_stand_in_is_not_kept_as_the_edge_voices_clip(monkeypatch):
+    s = paths.Settings()  # the Edge voice
+    made = []
+
+    def make(text, settings, stem):
+        made.append(text)
+        out = stem.with_suffix(".mp3")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"audio")
+        return out
+
+    monkeypatch.setattr(voice, "make_audio", make)
+    first = voice.clip("Sent.", s)
+    first.unlink()
+    stand_in = first.with_suffix(".wav")  # what the Windows voice leaves after an Edge hiccup
+    stand_in.write_bytes(b"robot")
+    again = voice.clip("Sent.", s)
+    assert again.suffix == ".mp3" and not stand_in.exists()
+    assert made == ["Sent.", "Sent."]
+    again.unlink()

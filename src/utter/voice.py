@@ -76,6 +76,10 @@ def clip(text: str, s: paths.Settings) -> Path:
     voice = s.windows_voice if s.voice_engine == "windows" else s.voice
     key = hashlib.sha1(f"{s.voice_engine}\n{voice}\n{s.speaking_rate}\n{text}".encode()).hexdigest()[:16]
     for found in paths.CLIPS.glob(f"{key}.*"):
+        if s.voice_engine != "windows" and found.suffix == ".wav":
+            # The Windows voice stood in during an Edge hiccup: try Edge again rather than keep it.
+            found.unlink(missing_ok=True)
+            continue
         return found
     return make_audio(text, s, paths.CLIPS / key)
 

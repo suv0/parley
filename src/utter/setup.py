@@ -72,6 +72,9 @@ def download_models(settings: paths.Settings) -> None:
         zip_path.unlink()
 
     from faster_whisper import download_model
+    from huggingface_hub.utils import logging as hf_logging
+
+    hf_logging.set_verbosity_error()  # no "unauthenticated requests" warning: the models are public
 
     sizes = {"tiny": "75 MB", "base": "140 MB", "small": "460 MB", "medium": "1.5 GB"}
     for name in dict.fromkeys([settings.model("live"), settings.model("final")]):
