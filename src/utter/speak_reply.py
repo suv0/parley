@@ -88,7 +88,7 @@ def main() -> None:
     if mic_is_open():  # never talk while Utter is recording you; the mic would hear it
         audio.unlink(missing_ok=True)
         return
-    play_as_answer(audio, delete_after=True)
+    play_as_answer(audio, delete_after=True, text=speech)
 
 
 if __name__ == "__main__":

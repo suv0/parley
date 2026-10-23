@@ -70,6 +70,26 @@ Layered checks: a sound has to pass every one before the beep.
 6. **Sleep mode.** "Hey Claude, go to sleep" (or the tray) means only "Hey Claude, wake up" works,
    and it needs the stricter check. Use it during a film or a meeting.
 
+**What testing showed, and what was built.** The ideas above were tried on Edge voices, real
+phrases and look-alikes:
+- **Vosk word confidence can't separate them.** A real "Hey Claude" often scores only 0.5 to 0.6,
+  the same as look-alikes.
+- **Whisper can't confirm the phrase.** It heard a real "Hey Claude" as "ECLOD", "Here you go" or
+  "High clone", even with the phrase as a hint.
+- **The openWakeWord "hey claude" model** almost never false-woke (1 of 96 tries), but it missed
+  a plain "Hey Claude" in 5 of 8 voices. It's too deaf to be the main detector.
+- **What does separate them is loudness around the phrase.** You say "Hey Claude" on its own,
+  louder than the room. A line in a film sits between other lines at the same loudness. So Utter
+  now finds the wake phrase in what Vosk heard, even inside a longer stretch when a TV runs behind
+  you, and wakes only when the loudest sound in the second before and the 0.8 s after is under
+  half the phrase's loudness.
+- **Self-wake guard:** while an answer that mentions "Claude" is playing, spoken wakes are ignored.
+- **Decoy words** ("hey", "okay", "cloudy", ...) give near-misses somewhere else to land.
+- **Bench results:** a real wake works in at least 5 of 6 voices, and over quieter TV. The wake
+  phrase inside dialogue (three lines, three voices) never wakes it.
+- **Vosk crash:** making a new recognizer after every message, with word times on, crashes Vosk
+  0.3.45 after a few dozen. Utter keeps one recognizer and resets it.
+
 ### 1.3 Recover from a false wake quietly
 - **No speech, no fuss.** If nothing is said within about 5 s of the beep, play a soft "cancelled"
   tone and go back to waiting. No spoken "problem" and no orange strip.

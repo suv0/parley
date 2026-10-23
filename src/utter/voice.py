@@ -99,12 +99,38 @@ def play(path: Path, wait: bool = True, delete_after: bool = False) -> subproces
     return proc
 
 
-def play_as_answer(path: Path, delete_after: bool = False) -> None:
-    """Plays an answer so that "quiet" and the next answer can stop it."""
+def play_as_answer(path: Path, delete_after: bool = False, text: str = "") -> None:
+    """Plays an answer so that "quiet" and the next answer can stop it. `text` is what it says,
+    so the wake check can tell Utter's own voice from yours."""
     stop_answer()
     player = play(path, wait=False, delete_after=delete_after)
     # The file goes on the second line so stopping the player early can still delete it.
     paths.PLAYER_PID.write_text(f"{player.pid}\n{path}" if delete_after else str(player.pid))
+    paths.SPEAKING.write_text(text, encoding="utf-8")
+
+
+def speaking() -> str:
+    """The text of the answer being read aloud right now, or "" when nothing is playing."""
+    try:
+        pid = paths.PLAYER_PID.read_text().split("\n")[0].strip()
+        text = paths.SPEAKING.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    return text if pid.isdigit() and _running(int(pid)) else ""
+
+
+def _running(pid: int) -> bool:
+    import ctypes
+
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return False
+    code = ctypes.c_ulong()
+    try:
+        return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259  # STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def stop_answer() -> None:
@@ -116,6 +142,7 @@ def stop_answer() -> None:
     if pid.isdigit():
         subprocess.run(["taskkill", "/PID", pid, "/T", "/F"], capture_output=True, creationflags=NO_WINDOW)
     paths.PLAYER_PID.unlink(missing_ok=True)
+    paths.SPEAKING.unlink(missing_ok=True)
     if audio:
         _remove(Path(audio))
 

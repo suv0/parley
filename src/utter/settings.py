@@ -26,6 +26,7 @@ LOG = DATA / "utter.log"
 VOICE_OFF = DATA / "voice-off"  # exists = don't read answers aloud
 LISTENING_FLAG = STATE / "listening.flag"  # exists = the mic is open, so stay silent
 PLAYER_PID = STATE / "player.pid"
+SPEAKING = STATE / "speaking.txt"  # what the answer playing now says
 LAST_ANSWER = STATE / "last-answer.txt"  # for "repeat that"
 BOX_PLACE = STATE / "box.json"
 STRIP_PLACE = STATE / "strip.json"

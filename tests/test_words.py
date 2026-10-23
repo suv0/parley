@@ -1,6 +1,6 @@
 from utter.settings import Settings
 from utter.words import (
-    change, command_in, ends_with_send, is_wake, joined, parse, plain, spell, strip_send_phrase, tidy,
+    change, command_in, ends_with_send, joined, parse, plain, spell, strip_send_phrase, tidy,
 )
 
 S = Settings()
@@ -75,13 +75,6 @@ def test_new_words_join_what_was_already_in_the_box():
     assert joined("Earlier text.", "more words") == "Earlier text. more words"
     assert joined("", "more words") == "more words"
 
-
-def test_the_wake_phrase_survives_a_missed_hey():
-    assert is_wake("hey claude", S.wake_phrases)
-    assert is_wake("[unk] claude", S.wake_phrases)
-    assert is_wake("[unk] cloud", S.wake_phrases)
-    assert not is_wake("[unk]", S.wake_phrases)
-    assert not is_wake("[unk] [unk] claude", S.wake_phrases)
 
 
 def test_a_mangled_short_command_still_counts():

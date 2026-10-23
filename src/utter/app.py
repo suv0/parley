@@ -22,8 +22,9 @@ import numpy as np
 
 from . import settings as paths
 from .targets import Hands, clipboard_text, restore_clipboard
-from .voice import clip, cue, make_audio, play, play_as_answer, remove_old_answers, stop_answer
-from .words import change, ends_with_send, is_wake, joined, parse, strip_send_phrase, tidy
+from .voice import clip, cue, make_audio, play, play_as_answer, remove_old_answers, speaking, stop_answer
+from .wake import AFTER, Surroundings, find, mentions
+from .words import change, ends_with_send, joined, parse, strip_send_phrase, tidy
 
 log = logging.getLogger("utter")
 
@@ -35,6 +36,10 @@ LOCK_PAUSE = 0.8  # seconds of quiet that end a piece of speech, so its words ar
 LOCK_SHORTEST = 4.0  # a piece is at least this long, so short commands and phrases stay whole
 LOCK_LONGEST = 10.0  # seconds of speech without a pause before the finished part is locked anyway
 BEHIND = 10  # blocks waiting (1 s): live words skip an update to catch up
+# Everyday words the wake recognizer may choose instead of a wake phrase, so speech that only
+# sounds a bit like "Hey Claude" lands on one of these and wakes nothing.
+# Nothing that sounds like the name itself: with noise behind you, "clyde" won over "claude".
+DECOYS = ["hey", "okay", "hi", "hello", "yeah", "cool", "the"]
 
 paused = threading.Event()
 stopping = threading.Event()
@@ -144,7 +149,7 @@ class Assistant:
             return
         try:
             audio = make_audio(text, self.settings, paths.STATE / f"spoken-{time.time_ns()}")
-            play_as_answer(audio, delete_after=True)
+            play_as_answer(audio, delete_after=True, text=text)
         except Exception:
             log.exception("reading aloud failed")
 
@@ -174,10 +179,48 @@ class Assistant:
         )
         self.live_model, self.final_model = load(s.model("live")), load(s.model("final"))
         vosk.SetLogLevel(-1)
-        self.wake = vosk.KaldiRecognizer(
-            vosk.Model(str(paths.VOSK_MODEL)), RATE, json.dumps(s.wake_phrases + ["[unk]"])
-        )
+        # One recognizer for the whole run, reset after each message. Making new ones with
+        # word times on crashes Vosk 0.3.45 after a few dozen.
+        self.wake = vosk.KaldiRecognizer(vosk.Model(str(paths.VOSK_MODEL)), RATE)
+        self.wake.SetGrammar(json.dumps(s.wake_phrases + DECOYS + ["[unk]"]))
+        self.wake.SetWords(True)  # word times, to check the phrase was said on its own
+        self.wake.SetPartialWords(True)  # and for words still being heard
         return True
+
+    def heard_wake(self, block: np.ndarray) -> str:
+        """The wake phrase when this block completes one said to Utter, else ""."""
+        # The recognizer's clock counts every sample it was given, resets included, so the
+        # loudness history lives with the recognizer.
+        around = getattr(self.wake, "utter_surroundings", None)
+        if around is None:
+            around = self.wake.utter_surroundings = Surroundings()
+            around.judged = set()  # start times of phrases already decided
+        around.add(block)
+        phrases = self.settings.wake_phrases
+        if self.wake.AcceptWaveform(block.tobytes()):
+            result = json.loads(self.wake.Result())
+            words, text = find(result.get("result", []), phrases), result.get("text", "")
+        else:
+            # With a TV or other voices behind you the recognizer never hears the silence that
+            # ends an utterance, so look at the words still being heard too.
+            partial = json.loads(self.wake.PartialResult())
+            words, text = find(partial.get("partial_result", []), phrases), partial.get("partial", "")
+            if words and around.fed / RATE < words[-1]["end"] + AFTER[1]:
+                return ""  # wait until the moment after the phrase can be checked
+        if not words:
+            return ""
+        start = round(words[-1]["start"], 1)
+        if start in around.judged:
+            return ""
+        around.judged.add(start)
+        heard = " ".join(w["word"] for w in words)
+        if not around.said_alone(words, self.settings.speaking_level):
+            log.info("ignored %r in %r: as loud as the sound around it", heard, text)
+            return ""
+        if mentions(speaking(), phrases):
+            log.info("ignored %r: Utter's own answer is saying it", heard)
+            return ""
+        return heard
 
     def run(self) -> None:
         import sounddevice as sd
@@ -237,12 +280,11 @@ class Assistant:
                     if until_empty:
                         return
                     continue
-                if paused.is_set() or not self.wake.AcceptWaveform(block.tobytes()):
+                if paused.is_set():
                     continue
-                heard = json.loads(self.wake.Result()).get("text", "")
-                if not is_wake(heard, self.settings.wake_phrases):
+                woke = self.heard_wake(block)
+                if not woke:
                     continue
-                woke = heard
             if paused.is_set():
                 continue
             log.info("wake: %s", woke)

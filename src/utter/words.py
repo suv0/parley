@@ -160,15 +160,5 @@ def tidy(text: str, remove_fillers: bool, replacements: dict[str, str]) -> str:
     return text
 
 
-def is_wake(heard: str, wake_phrases: list[str]) -> bool:
-    """A wake phrase, or an unclear first word followed by a wake phrase's name
-    ("[unk] claude"): the recognizer often misses the "hey" but rarely the name."""
-    if heard in wake_phrases:
-        return True
-    words = heard.split()
-    names = {p.split()[-1] for p in wake_phrases if len(p.split()) > 1}
-    return len(words) == 2 and words[0] == "[unk]" and words[1] in names
-
-
 def joined(prefix: str, words: str) -> str:
     return f"{prefix} {words}".strip() if prefix else words

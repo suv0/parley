@@ -22,12 +22,12 @@ from utter.app import BLOCK, RATE, Assistant  # noqa: E402
 if not os.environ.get("UTTER_MODELS") or not paths.VOSK_MODEL.exists():
     pytest.skip("speech models not installed", allow_module_level=True)
 
-SPEECH_CACHE: dict[str, np.ndarray] = {}
+SPEECH_CACHE: dict[tuple[str, str], np.ndarray] = {}
 
 
-def speech(text: str) -> np.ndarray:
-    """`text` spoken by the Edge voice, as 16 kHz 16-bit samples."""
-    if text not in SPEECH_CACHE:
+def speech(text: str, voice: str = "en-US-AndrewMultilingualNeural") -> np.ndarray:
+    """`text` spoken by an Edge voice, as 16 kHz 16-bit samples."""
+    if (text, voice) not in SPEECH_CACHE:
         import asyncio
         import tempfile
 
@@ -35,15 +35,15 @@ def speech(text: str) -> np.ndarray:
         import edge_tts
 
         out = os.path.join(tempfile.mkdtemp(), "speech.mp3")
-        asyncio.run(edge_tts.Communicate(text, "en-US-AndrewMultilingualNeural").save(out))
+        asyncio.run(edge_tts.Communicate(text, voice).save(out))
         resampler = av.AudioResampler(format="s16", layout="mono", rate=RATE)
         parts = []
         with av.open(out) as container:
             for frame in container.decode(audio=0):
                 parts += [f.to_ndarray().reshape(-1) for f in resampler.resample(frame)]
         parts += [f.to_ndarray().reshape(-1) for f in resampler.resample(None)]
-        SPEECH_CACHE[text] = np.concatenate(parts).astype(np.int16)
-    return SPEECH_CACHE[text]
+        SPEECH_CACHE[text, voice] = np.concatenate(parts).astype(np.int16)
+    return SPEECH_CACHE[text, voice]
 
 
 def silence(seconds: float) -> np.ndarray:
@@ -274,3 +274,51 @@ def test_a_long_message_never_re_transcribes_what_is_already_settled(models):
     text = box.text.lower()
     assert "save button" in text and "loads every setting twice" in text
     assert "send it" not in text
+
+
+# --- the wake bench: real wakes wake it, the same words in a film or a video don't -----------
+
+VOICES = ["en-US-AndrewMultilingualNeural", "en-US-JennyNeural", "en-GB-SoniaNeural", "en-IN-PrabhatNeural",
+          "en-US-GuyNeural", "en-AU-WilliamMultilingualNeural"]
+
+
+def trimmed(sound: np.ndarray) -> np.ndarray:
+    """Without the half second of silence the voice puts at each end, as in real dialogue."""
+    loud = np.flatnonzero(np.abs(sound) > 300)
+    return sound[loud[0]:loud[-1] + 1] if len(loud) else sound
+
+
+def wakes(models, *sounds: np.ndarray) -> int:
+    a = Assistant(paths.Settings(), hands=FakeHands(FakeTarget(live=True)), speak=False)
+    a.realtime = False
+    a.live_model, a.final_model, a.wake = models
+    a.wake.Reset()
+    woke = []
+    a.one_message = lambda: woke.append(1)
+    feed(a, *sounds)
+    a.listen(until_empty=True)
+    return len(woke)
+
+
+def test_hey_claude_said_on_its_own_wakes_it_in_most_voices(models):
+    woke = sum(wakes(models, silence(1), speech("Hey Claude.", v), silence(1.5)) > 0 for v in VOICES)
+    assert woke >= len(VOICES) - 1
+
+
+def test_wake_phrases_inside_dialogue_do_not_wake_it(models):
+    lines = [("So what's your name?", "Okay Claude.", "Take me inside."),
+             ("We need to leave now.", "Hey cloud.", "Is the family okay?"),
+             ("Look at the sky.", "Hi Claude.", "It's going to rain again.")]
+    woke = 0
+    for before, phrase, after in lines:
+        for v in VOICES[:3]:
+            woke += wakes(models, trimmed(speech(before, v)), silence(0.25), trimmed(speech(phrase, v)),
+                          silence(0.25), trimmed(speech(after, v)), silence(1.5))
+    assert woke == 0
+
+
+def test_hey_claude_over_a_quieter_tv_still_wakes_it(models):
+    tv = np.concatenate([speech("So what's your name? Maria. Take me inside, is the family okay?", "en-US-AriaNeural")] * 2)
+    you = np.concatenate([silence(1.5), speech("Hey Claude.", "en-US-JennyNeural"), silence(1.5)])
+    room = tv[: len(you)].astype(np.int32) // 6 + you
+    assert wakes(models, room.astype(np.int16)) == 1
