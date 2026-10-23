@@ -1,0 +1,15 @@
+<Configuration>
+  <!-- Double-click to open a clean Windows Sandbox that installs Utter from GitHub on its own. -->
+  <Networking>Enable</Networking>
+  <AudioInput>Enable</AudioInput>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\Users\shuvo\work\pet-projects\utter-sandbox-test</HostFolder>
+      <SandboxFolder>C:\utter-test</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>powershell -NoProfile -ExecutionPolicy Bypass -File C:\utter-test\run-in-sandbox.ps1</Command>
+  </LogonCommand>
+</Configuration>
