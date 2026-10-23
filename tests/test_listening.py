@@ -322,3 +322,27 @@ def test_hey_claude_over_a_quieter_tv_still_wakes_it(models):
     you = np.concatenate([silence(1.5), speech("Hey Claude.", "en-US-JennyNeural"), silence(1.5)])
     room = tv[: len(you)].astype(np.int32) // 6 + you
     assert wakes(models, room.astype(np.int16)) == 1
+
+
+def test_noise_that_whisper_turns_into_thank_you_types_nothing(models, monkeypatch):
+    box = FakeTarget(live=True, text="Keep me")
+    a = Assistant(paths.Settings(), hands=FakeHands(box), speak=False)
+    a.final_model = None
+    monkeypatch.setattr(a, "final_words", lambda _chunks: ("Thank you. Thank you.", -0.9))
+    a.finish(box, "Keep me", "leave", [silence(1)], "Thank you.")
+    assert box.text == "Keep me"
+
+
+def test_never_mind_cancels_and_types_nothing(models):
+    box = FakeTarget(live=True, text="Draft")
+    run(models, box, *wake(), speech("Never mind."), silence(3))
+    assert box.text == "Draft" and box.sent == 0 and box.escaped == 0
+
+
+def test_unsure_words_are_not_pasted_into_another_app(models, monkeypatch):
+    notepad = FakeTarget(live=False)
+    a = Assistant(paths.Settings(), hands=FakeHands(notepad), speak=False)
+    a.final_model = None
+    monkeypatch.setattr(a, "final_words", lambda _chunks: ("Maria take me inside", -1.3))
+    a.finish(notepad, "", "leave", [silence(1)], "Maria take me inside")
+    assert notepad.writes == []

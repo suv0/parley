@@ -24,7 +24,7 @@ from . import settings as paths
 from .targets import Hands, clipboard_text, restore_clipboard
 from .voice import clip, cue, make_audio, play, play_as_answer, remove_old_answers, speaking, stop_answer
 from .wake import AFTER, Surroundings, find, mentions
-from .words import change, ends_with_send, joined, parse, strip_send_phrase, tidy
+from .words import change, ends_with_send, joined, only_phantoms, parse, strip_send_phrase, tidy, without_repeats
 
 log = logging.getLogger("utter")
 
@@ -66,6 +66,14 @@ SAYINGS = {
     "notsupported": "That only works in the Claude app's message box.",
     "noanswer": "There's no answer to repeat yet.",
     "typed": "Typed.",
+    "cancelled": "Cancelled.",
+    "nottyped": "I wasn't sure I heard you, so I didn't type anything.",
+}
+# Whisper invents these from noise or music. On their own, they mean nobody spoke.
+PHANTOMS = {
+    "thank you", "thanks", "thank you very much", "thanks for watching", "thank you for watching",
+    "see you next time", "well see you next time", "bye", "goodbye", "you", "subscribe",
+    "please subscribe", "like and subscribe", "music", "applause", "so", "okay", "oh",
 }
 STATUS = {
     "nowindow": "Can't find the Claude app",
@@ -417,14 +425,16 @@ class Assistant:
     def finish(self, target, prefix: str, how: str, chunks: list[np.ndarray], live: str) -> None:
         s = self.settings
         if how == "nothing":
-            target.write(prefix)
-            self.show("problem", "I didn't hear anything")
-            self.say("nothing")
+            self.cancelled(target, prefix, "Nothing heard, so back to waiting")
             return
         self.show("working", "Getting your words right")
         final, sureness = self.final_words(chunks)
         final = final or live
         log.info("final: %r (%s, sureness %.2f)", final, how, sureness)
+        if only_phantoms(final, PHANTOMS):
+            log.info("only noise: %r", final)
+            self.cancelled(target, prefix, "Only noise heard, so nothing was typed")
+            return
         command, arg = parse(final, s.wake_phrases)
         if not command and how == "command":
             command, arg = parse(live, s.wake_phrases)
@@ -433,6 +443,11 @@ class Assistant:
             return
         text = arg if command == "literal" else tidy(strip_send_phrase(final, s.send_phrases), s.remove_fillers,
                                                      s.replacements)
+        if not target.live_typing and how == "leave" and sureness < UNCLEAR:
+            # Another app can't be checked or cleared by voice, so don't paste words that may be noise.
+            self.show("problem", "Not typed: I wasn't sure I heard you", text)
+            self.say("nottyped")
+            return
         typed = joined(prefix, text) if target.live_typing else text
         problem = target.write(typed)
         if problem:
@@ -449,6 +464,16 @@ class Assistant:
         else:
             self.show("idle", f"Left unsent. Say “{s.wake_name}, send it”")
             self.say("left")
+
+    def cancelled(self, target, prefix: str, why: str) -> None:
+        """Back to waiting without a fuss: put the box back as it was, and a soft tone."""
+        if target.live_typing:
+            target.write(prefix)
+        self.show("idle", why)
+        if self.settings.cue_sounds:
+            self.beep("cancel")
+        else:
+            self.say("cancelled")
 
     def final_words(self, chunks: list[np.ndarray]) -> tuple[str, float]:
         """The accurate transcript: the locked pieces (mostly done already) plus the tail."""
@@ -472,12 +497,15 @@ class Assistant:
             sound, language=s.language, beam_size=beam_size, vad_filter=True,
             hotwords=", ".join(s.words) if s.words else None,
         )
-        return list(found)
+        # Drop what Whisper invents from noise: segments it thinks hold no speech and isn't sure
+        # of, and looping repeats (a high compression ratio).
+        return [seg for seg in found
+                if not (seg.no_speech_prob > 0.6 and seg.avg_logprob < -0.5) and seg.compression_ratio < 2.4]
 
     def transcribe(self, model, chunks: list[np.ndarray], beam_size: int) -> tuple[str, float]:
         """(the words, how sure: the average log-probability, 0 = certain)."""
         segments = self.segments(model, chunks, beam_size)
-        text = " ".join(seg.text.strip() for seg in segments).strip()
+        text = without_repeats(" ".join(seg.text.strip() for seg in segments).strip())
         sureness = sum(seg.avg_logprob for seg in segments) / len(segments) if segments else 0.0
         return text, sureness
 
@@ -498,6 +526,9 @@ class Assistant:
                 target.write("")
             self.show("idle", "Cleared")
             self.say("cleared")
+            return
+        if name == "cancel":
+            self.cancelled(target, prefix, "Cancelled")
             return
         if target.live_typing:
             target.write(prefix)  # put back what was there before

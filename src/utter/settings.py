@@ -91,8 +91,8 @@ class Settings:
 
     # Stop listening after this much quiet, and leave your words in the box unsent.
     quiet_seconds: float = 15.0
-    # Give up if you say nothing this long after you wake Utter.
-    nothing_heard_seconds: float = 8.0
+    # Go back to waiting, with a soft tone, if you say nothing this long after you wake Utter.
+    nothing_heard_seconds: float = 5.0
     # A short command ("scratch that") is acted on after this much quiet.
     command_pause_seconds: float = 1.5
     # Longest single message, in seconds.

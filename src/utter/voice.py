@@ -172,7 +172,14 @@ def remove_old_answers(older_than: float = 3600) -> None:
 
 # --- beeps --------------------------------------------------------------------------
 
-CUES = {"start": [(660, 0.07), (880, 0.09)], "stop": [(880, 0.07), (660, 0.09)], "error": [(330, 0.18)]}
+CUES = {
+    "start": [(660, 0.07), (880, 0.09)],  # listening
+    "stop": [(880, 0.07), (660, 0.09)],  # done listening
+    "error": [(330, 0.18)],
+    "cancel": [(587, 0.06), (440, 0.12)],  # back to waiting, nothing typed
+    "thinking": [(392, 0.05), (0, 0.06), (392, 0.05)],  # sent; Claude is working
+    "answer": [(523, 0.05), (784, 0.08)],  # an answer is about to be read
+}
 
 
 def _cue_file(name: str) -> Path:

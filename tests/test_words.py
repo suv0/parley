@@ -83,3 +83,22 @@ def test_a_mangled_short_command_still_counts():
     assert command_in("Top.", S.wake_phrases) == ""  # too short to guess
     assert command_in("Run back", S.wake_phrases) == ""
     assert command_in("Read the error log and fix it", S.wake_phrases) == ""
+
+
+def test_whisper_loops_and_phantoms_are_recognized():
+    from utter.app import PHANTOMS
+    from utter.words import only_phantoms, without_repeats
+
+    assert without_repeats("We'll see you next time. We'll see you next time. We'll see you next time.") == \
+        "We'll see you next time."
+    assert without_repeats("Fix it. Then fix it again. Then fix it again.") == "Fix it. Then fix it again."
+    assert only_phantoms("We'll see you next time.", PHANTOMS)
+    assert only_phantoms("Thank you. Thank you.", PHANTOMS)
+    assert not only_phantoms("Thank you, now fix the login page.", PHANTOMS)
+    assert not only_phantoms("", PHANTOMS)
+
+
+def test_cancel_and_never_mind_cancel_while_stop_still_stops_claude():
+    assert parse("Never mind.")[0] == "cancel"
+    assert parse("Cancel.")[0] == "cancel"
+    assert parse("Stop.")[0] == "stop"

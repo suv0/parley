@@ -8,7 +8,8 @@ COMMANDS = {
     "send": {"send", "send it", "send that", "send it now", "send the message"},
     "scratch": {"scratch that", "clear", "clear it", "clear that", "clear the box", "delete that", "start over"},
     "quiet": {"quiet", "be quiet", "stop talking", "shut up", "silence", "mute"},
-    "stop": {"stop", "stop working", "cancel", "stop it", "stop everything", "abort"},
+    "stop": {"stop", "stop working", "stop it", "stop everything", "abort"},
+    "cancel": {"cancel", "cancel that", "never mind", "nevermind", "forget it", "forget that"},
     "voice off": {"voice off", "turn voice off", "turn off voice", "turn off the voice", "no voice", "stop speaking"},
     "voice on": {"voice on", "turn voice on", "turn on voice", "turn on the voice", "speak again", "start speaking"},
     "help": {"help", "show help", "hide help", "what can i say", "commands"},
@@ -162,3 +163,26 @@ def tidy(text: str, remove_fillers: bool, replacements: dict[str, str]) -> str:
 
 def joined(prefix: str, words: str) -> str:
     return f"{prefix} {words}".strip() if prefix else words
+
+
+def _sentences(text: str) -> list[str]:
+    return [s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s]
+
+
+def _bare(text: str) -> str:
+    return " ".join("".join(c for c in text.lower() if c.isalnum() or c == " ").split())
+
+
+def without_repeats(text: str) -> str:
+    """'We'll see you. We'll see you. We'll see you.' -> 'We'll see you.' Whisper loops on noise."""
+    out: list[str] = []
+    for sentence in _sentences(text):
+        if not out or _bare(sentence) != _bare(out[-1]):
+            out.append(sentence)
+    return " ".join(out)
+
+
+def only_phantoms(text: str, phantoms: set[str]) -> bool:
+    """True when every sentence is one Whisper invents from noise ("Thank you.")."""
+    bare = [_bare(s) for s in _sentences(text)]
+    return bool(bare) and all(b in phantoms or not b for b in bare)
