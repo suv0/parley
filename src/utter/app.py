@@ -22,7 +22,7 @@ import numpy as np
 
 from . import settings as paths
 from .targets import Hands, clipboard_text, restore_clipboard
-from .voice import clip, cue, make_audio, play, play_as_answer, stop_answer
+from .voice import clip, cue, make_audio, play, play_as_answer, remove_old_answers, stop_answer
 from .words import change, ends_with_send, is_wake, joined, parse, strip_send_phrase, tidy
 
 log = logging.getLogger("utter")
@@ -144,6 +144,7 @@ class Assistant:
 
         s = self.settings
         self.show("working", "Starting up")
+        remove_old_answers()
         if not self.load_models():
             return
         if self.speak:

@@ -12,6 +12,7 @@ import logging
 import math
 import struct
 import subprocess
+import time
 import wave
 from pathlib import Path
 
@@ -102,18 +103,44 @@ def play_as_answer(path: Path, delete_after: bool = False) -> None:
     """Plays an answer so that "quiet" and the next answer can stop it."""
     stop_answer()
     player = play(path, wait=False, delete_after=delete_after)
-    paths.PLAYER_PID.write_text(str(player.pid))
+    # The file goes on the second line so stopping the player early can still delete it.
+    paths.PLAYER_PID.write_text(f"{player.pid}\n{path}" if delete_after else str(player.pid))
 
 
 def stop_answer() -> None:
-    """Stops an answer that is still being read aloud."""
+    """Stops an answer that is still being read aloud, and deletes its audio if it was a one-off."""
     try:
-        pid = paths.PLAYER_PID.read_text().strip()
+        pid, _, audio = paths.PLAYER_PID.read_text().strip().partition("\n")
     except OSError:
         return
     if pid.isdigit():
         subprocess.run(["taskkill", "/PID", pid, "/T", "/F"], capture_output=True, creationflags=NO_WINDOW)
     paths.PLAYER_PID.unlink(missing_ok=True)
+    if audio:
+        _remove(Path(audio))
+
+
+def _remove(path: Path) -> None:
+    for _ in range(20):  # the stopped player can hold the file for a moment after it exits
+        try:
+            path.unlink(missing_ok=True)
+            return
+        except PermissionError:
+            time.sleep(0.05)
+        except OSError:
+            return
+
+
+def remove_old_answers(older_than: float = 3600) -> None:
+    """Deletes answer audio left over from a crash or an older Utter. Cached clips stay."""
+    cutoff = time.time() - older_than
+    for pattern in ("answer-*.mp3", "answer-*.wav", "spoken-*.mp3", "spoken-*.wav"):
+        for path in paths.STATE.glob(pattern):
+            try:
+                if path.stat().st_mtime < cutoff:
+                    path.unlink()
+            except OSError:
+                pass
 
 
 # --- beeps --------------------------------------------------------------------------
