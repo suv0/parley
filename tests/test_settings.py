@@ -67,3 +67,25 @@ def test_an_older_settings_file_gets_the_new_settings_added(tmp_path):
     s = load(path)
     assert s.voice == "en-GB-RyanNeural" and s.hotkey == Settings().hotkey
     assert missing_settings_text(default_file_text()) == ""
+
+
+def test_saving_one_setting_keeps_the_rest_of_the_file(tmp_path):
+    from utter.settings import save
+
+    path = tmp_path / "config.toml"
+    path.write_text(default_file_text(), encoding="utf-8")
+    save("speaking_rate", 15, path)
+    save("cue_sounds", False, path)
+    s = load(path)
+    assert s.speaking_rate == 15 and s.cue_sounds is False
+    assert s.voice == Settings().voice
+    assert "# Say one of these to wake Utter." in path.read_text(encoding="utf-8")
+
+
+def test_saving_a_setting_the_file_lacks_adds_it(tmp_path):
+    from utter.settings import save
+
+    path = tmp_path / "config.toml"
+    path.write_text('voice = "en-GB-RyanNeural"\n', encoding="utf-8")
+    save("voice_engine", "windows", path)
+    assert load(path).voice_engine == "windows" and load(path).voice == "en-GB-RyanNeural"

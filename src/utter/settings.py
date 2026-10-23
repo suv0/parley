@@ -28,6 +28,8 @@ LISTENING_FLAG = STATE / "listening.flag"  # exists = the mic is open, so stay s
 PLAYER_PID = STATE / "player.pid"
 SPEAKING = STATE / "speaking.txt"  # what the answer playing now says
 LAST_ANSWER = STATE / "last-answer.txt"  # for "repeat that"
+LAST_MORE = STATE / "last-more.json"  # the rest of the last answer, for "more"
+INBOX = STATE / "inbox"  # answers from the read-aloud hook, waiting for Utter to read them
 BOX_PLACE = STATE / "box.json"
 STRIP_PLACE = STATE / "strip.json"
 
@@ -111,10 +113,30 @@ class Settings:
     windows_voice: str = ""
     # Speaking speed in percent: 0 = normal, -30 = slower, 25 = faster.
     speaking_rate: int = 0
-    # Longest answer read aloud, in characters. Longer answers are cut at a sentence.
-    max_spoken_chars: int = 900
-    # Short beeps when Utter starts and stops listening, instead of saying "Yes?".
+    # How answers are read:
+    #   "rewrite" = a fast Claude model rewrites each answer for listening: the outcome first,
+    #               things described instead of read out ("the pull request that adds the
+    #               demo", not "PR 2"). It uses ANTHROPIC_API_KEY when that is set, otherwise
+    #               the claude command. If neither works in time, "plain" is used.
+    #   "plain"   = the answer itself, without code, links, tables and markdown.
+    # Either way you hear the start, and "Hey Claude, more" reads the rest.
+    spoken_answers: str = "rewrite"
+    # The Claude model that rewrites answers, and how long to wait for it.
+    rewrite_model: str = "claude-haiku-5-5"
+    rewrite_seconds: float = 12.0
+    # Which answers are read aloud:
+    #   "all"  = every Claude Code answer on this PC.
+    #   "mine" = only answers in the 15 minutes after you sent a message by voice.
+    read_answers: str = "all"
+    # Short tones for each step (listening, done, sent, answer coming, cancelled),
+    # instead of saying "Yes?".
     cue_sounds: bool = True
+
+    # --- Privacy ---
+
+    # Write the words Utter hears into its log, to help find a problem. Off: the log only
+    # says how long things were and how sure Utter was.
+    log_words: bool = False
 
     # --- The status strip ---
 
@@ -217,3 +239,18 @@ def _toml(value) -> str:
     if isinstance(value, dict):
         return "{ " + ", ".join(f"{_toml(k)} = {_toml(v)}" for k, v in value.items()) + " }" if value else "{}"
     return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def save(name: str, value, path: Path = CONFIG_FILE) -> None:
+    """Changes one setting in config.toml, keeping everything else (comments too) as it is."""
+    import re
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        text = default_file_text()
+    line = f"{name} = {_toml(value)}"
+    pattern = re.compile(rf"(?m)^\s*{re.escape(name)}\s*=.*$")
+    text = pattern.sub(line, text, count=1) if pattern.search(text) else text.rstrip("\n") + f"\n\n{line}\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")

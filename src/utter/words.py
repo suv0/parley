@@ -16,6 +16,23 @@ COMMANDS = {
     "repeat": {"repeat that", "repeat", "say that again", "repeat the answer", "what did you say", "say it again"},
     "read back": {"read it back", "read that back", "read back", "read me the message", "what did i say",
                   "read the message"},
+    # While an answer is read aloud.
+    "more": {"more", "tell me more", "read more", "read the rest", "the rest", "keep reading", "keep going",
+             "go on", "details", "the details", "give me the details", "resume", "carry on"},
+    "skip": {"skip", "skip that", "skip it", "next", "next part", "next one"},
+    "back": {"go back", "back", "previous", "previous part", "back one"},
+    "pause": {"pause", "pause that", "hold on"},
+    "slower": {"slower", "speak slower", "talk slower", "slow down", "read slower"},
+    "faster": {"faster", "speak faster", "talk faster", "speed up", "read faster"},
+    # About Utter itself.
+    "status": {"status", "what's happening", "whats happening", "what are you doing", "are you there",
+               "what's going on", "whats going on"},
+    "sleep": {"go to sleep", "sleep", "sleep now"},
+    "beeps off": {"beeps off", "turn the beeps off", "turn off the beeps", "no beeps", "sounds off"},
+    "beeps on": {"beeps on", "turn the beeps on", "turn on the beeps", "sounds on"},
+    "offline voice": {"offline voice", "use the offline voice", "windows voice", "use the windows voice"},
+    "online voice": {"online voice", "use the online voice", "natural voice", "use the natural voice",
+                     "edge voice"},
 }
 CHANGE = re.compile(r"^(?:change|replace|correct) (.+?) (?:to|with|into) (.+)$")
 SPELL = re.compile(r"^spell(?: it| that)? (.+)$")

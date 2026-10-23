@@ -104,9 +104,21 @@ def play_as_answer(path: Path, delete_after: bool = False, text: str = "") -> No
     so the wake check can tell Utter's own voice from yours."""
     stop_answer()
     player = play(path, wait=False, delete_after=delete_after)
-    # The file goes on the second line so stopping the player early can still delete it.
-    paths.PLAYER_PID.write_text(f"{player.pid}\n{path}" if delete_after else str(player.pid))
+    mark_playing(player.pid, path if delete_after else None, text)
+
+
+def mark_playing(pid: int, audio: Path | None, text: str) -> None:
+    """Records the answer playing now: its player (so it can be stopped), its audio file (so
+    stopping it early can still delete it) and its words (for the wake check)."""
+    paths.PLAYER_PID.write_text(f"{pid}\n{audio}" if audio else str(pid))
     paths.SPEAKING.write_text(text, encoding="utf-8")
+
+
+_on_stop: list = []  # called when an answer is stopped from outside the reader ("quiet", the tray)
+
+
+def on_stop(callback) -> None:
+    _on_stop.append(callback)
 
 
 def speaking() -> str:
@@ -134,7 +146,14 @@ def _running(pid: int) -> bool:
 
 
 def stop_answer() -> None:
-    """Stops an answer that is still being read aloud, and deletes its audio if it was a one-off."""
+    """Stops the answer being read aloud, and anything left of it."""
+    stop_player()
+    for callback in _on_stop:
+        callback()
+
+
+def stop_player() -> None:
+    """Stops the part playing now, and deletes its audio if it was a one-off."""
     try:
         pid, _, audio = paths.PLAYER_PID.read_text().strip().partition("\n")
     except OSError:

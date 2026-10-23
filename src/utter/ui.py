@@ -33,11 +33,17 @@ def help_lines(s: paths.Settings) -> list[tuple[str, str]]:
         (f"{wake}, change X to Y", "fix a word"),
         (f"{wake}, spell A B C", "type letters"),
         (f"{wake}, type stop", "type a command word"),
+        (f"{wake}, cancel", "stop listening, type nothing"),
         (f"{wake}, repeat that", "hear the answer again"),
+        (f"{wake}, more", "the rest of the answer"),
+        (f"{wake}, skip / go back / pause", "move around the answer"),
+        (f"{wake}, slower / faster", "reading speed"),
         (f"{wake}, quiet", "stop reading the answer"),
         (f"{wake}, stop", "stop Claude (presses Esc)"),
+        (f"{wake}, what's happening", "hear what Utter is doing"),
+        (f"{wake}, go to sleep", f"only “{wake}, wake up” wakes it"),
         (f"{wake}, voice off / on", "spoken answers"),
-        (f"{wake}, help", "show or hide this"),
+        (f"{wake}, help", "show this and hear the commands"),
         ("", "In the Claude app, click its message box once. Anywhere else, words go where your cursor is."
              + (" Pauses never send." if s.send_mode == "phrase" else "")),
     ]

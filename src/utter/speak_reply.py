@@ -1,20 +1,22 @@
-"""Claude Code Stop hook: reads a short, plain version of Claude's last answer aloud.
+"""Claude Code Stop hook: reads Claude's last answer aloud, rewritten for listening.
 
 `utter setup` adds it to ~/.claude/settings.json as an async hook, so Claude never waits for it.
-It drops code, tables, links and markdown, and a new answer stops the one still playing.
+A fast Claude model rewrites the answer for the ear (see spoken.py). When Utter is running,
+the spoken answer goes to Utter, which reads it a part at a time and takes "more", "skip" and
+"pause"; otherwise this hook reads the short version itself.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 import time
 from pathlib import Path
 
 from . import settings as paths
-from .voice import make_audio, play_as_answer
+from .spoken import REWRITING, for_listening
+from .voice import _running, make_audio, play_as_answer
 
 
 def last_reply(payload: dict) -> str:
@@ -38,32 +40,6 @@ def last_reply(payload: dict) -> str:
     return last
 
 
-def to_speech(text: str, max_chars: int) -> str:
-    text = re.sub(r"```.*?```", " ", text, flags=re.S)  # code blocks
-    lines = []
-    for line in text.splitlines():
-        s = line.strip()
-        if s.startswith("|") or re.fullmatch(r"[-|: ]+", s or "x"):
-            continue  # tables
-        s = s.lstrip(">").strip()
-        s = re.sub(r"^#{1,6}\s*", "", s)
-        s = re.sub(r"^([-*+]|\d+\.)\s+", "", s)
-        lines.append(s)
-    text = "\n".join(lines)
-    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)  # links keep their words
-    text = re.sub(r"https?://\S+", "", text)
-    text = re.sub(r"`([^`]+)`", r"\1", text)
-    text = re.sub(r"[*_]{1,3}([^*_]+)[*_]{1,3}", r"\1", text)
-    text = text.replace("→", " to ").replace("·", ",").replace("#", " number ")
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n{2,}", "\n", text).strip()
-    if len(text) > max_chars:
-        cut = text[:max_chars]
-        end = max(cut.rfind(". "), cut.rfind("\n"))
-        text = cut[: end + 1] if end > max_chars // 4 else cut
-    return text
-
-
 def mic_is_open() -> bool:
     try:
         return time.time() - float(paths.LISTENING_FLAG.read_text() or 0) < 120
@@ -71,7 +47,17 @@ def mic_is_open() -> bool:
         return False
 
 
+def utter_running() -> bool:
+    try:
+        pid = int((paths.STATE / "app.pid").read_text().strip())
+    except (OSError, ValueError):
+        return False
+    return _running(pid)
+
+
 def main() -> None:
+    if os.environ.get(REWRITING):
+        return  # Claude rewriting an answer for Utter: not an answer to read
     settings = paths.load()
     if not settings.speak_replies or paths.VOICE_OFF.exists():
         return
@@ -79,16 +65,27 @@ def main() -> None:
         payload = json.loads(sys.stdin.read() or "{}")
     except ValueError:
         payload = {}
-    speech = to_speech(last_reply(payload), settings.max_spoken_chars)
-    if len(speech) < 3:
+    written = last_reply(payload)
+    if len(written.strip()) < 3:
+        return
+    spoken = for_listening(written, settings)
+    if len(spoken.short) < 3:
         return
     paths.STATE.mkdir(parents=True, exist_ok=True)
-    paths.LAST_ANSWER.write_text(speech, encoding="utf-8")  # for "repeat that"
-    audio = make_audio(speech, settings, paths.STATE / f"answer-{os.getpid()}")
+    if utter_running():
+        paths.INBOX.mkdir(parents=True, exist_ok=True)
+        item = paths.INBOX / f"{time.time_ns()}.json"
+        temp = item.with_suffix(".tmp")
+        temp.write_text(json.dumps({"short": spoken.short, "more": spoken.more, "by": spoken.by}), encoding="utf-8")
+        temp.replace(item)  # whole, or not there yet
+        return
+    paths.LAST_ANSWER.write_text(spoken.short, encoding="utf-8")  # for "repeat that"
+    paths.LAST_MORE.write_text(json.dumps(spoken.more), encoding="utf-8")
+    audio = make_audio(spoken.short, settings, paths.STATE / f"answer-{os.getpid()}")
     if mic_is_open():  # never talk while Utter is recording you; the mic would hear it
         audio.unlink(missing_ok=True)
         return
-    play_as_answer(audio, delete_after=True, text=speech)
+    play_as_answer(audio, delete_after=True, text=spoken.short)
 
 
 if __name__ == "__main__":

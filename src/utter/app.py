@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import queue
+import re
 import threading
 import time
 
@@ -22,8 +23,9 @@ import numpy as np
 
 from . import settings as paths
 from .targets import Hands, clipboard_text, restore_clipboard
-from .voice import clip, cue, make_audio, play, play_as_answer, remove_old_answers, speaking, stop_answer
-from .wake import AFTER, Surroundings, find, mentions
+from .speaker import Speaker
+from .voice import clip, cue, make_audio, play, remove_old_answers, speaking, stop_answer, stop_player
+from .wake import AFTER, Surroundings, find, level, mentions
 from .words import change, ends_with_send, joined, only_phantoms, parse, strip_send_phrase, tidy, without_repeats
 
 log = logging.getLogger("utter")
@@ -68,7 +70,20 @@ SAYINGS = {
     "typed": "Typed.",
     "cancelled": "Cancelled.",
     "nottyped": "I wasn't sure I heard you, so I didn't type anything.",
+    "nomore": "That's all of it.",
+    "notreading": "I'm not reading anything right now.",
+    "slower": "Okay, slower.",
+    "faster": "Okay, faster.",
+    "sleeping": "Going to sleep. Say {wake}, wake up, when you need me.",
+    "awake": "I'm listening again.",
+    "beepsoff": "Okay, no more beeps.",
+    "beepson": "Beeps are back on.",
+    "offline": "Okay, I'll use the offline voice.",
+    "online": "Okay, I'll use the natural voice.",
+    "notsent": "Okay, I didn't send it. It's still there.",
+    "helpoffer": "If you're stuck, say {wake}, help.",
 }
+LONG_MESSAGE = 40  # words: longer messages are read back briefly before they're sent
 # Whisper invents these from noise or music. On their own, they mean nobody spoke.
 PHANTOMS = {
     "thank you", "thanks", "thank you very much", "thanks for watching", "thank you for watching",
@@ -134,13 +149,23 @@ class Assistant:
         self.audio: queue.Queue[np.ndarray] = queue.Queue()
         self.ears = threading.Event()  # set = keep what the mic hears
         self.hotkey = threading.Event()  # set when the shortcut is pressed
+        self.speaker = Speaker(settings, busy=paths.LISTENING_FLAG.exists, speak=speak)
+        self.awake_text = self.idle_text
+        self.sleeping = False  # "go to sleep": only "Hey Claude, wake up" (or the shortcut) wakes it
+        self.failures = 0  # problems in a row
+        self.state = ("idle", self.idle_text)
 
     # --- status and sound ----------------------------------------------------------
 
     def show(self, state: str, text: str, live: str = "") -> None:
         """state: idle | listening | working | paused | problem"""
-        log.info("status: %s | %s%s", state, text, f" | {live}" if live else "")
+        log.info("status: %s | %s%s", state, text, f" | {self.private(live)}" if live else "")
+        self.state = (state, text)
         ui_events.put(("status", f"{state}\t{text}\t{live}"))
+
+    def private(self, words: str) -> str:
+        """`words` for the log: the words themselves only when log_words is on."""
+        return words if self.settings.log_words else f"<{len(words.split())} words>"
 
     def say(self, key: str, wait: bool = True) -> None:
         if not self.speak:
@@ -153,13 +178,22 @@ class Assistant:
 
     def say_text(self, text: str) -> None:
         """Reads any text aloud, as an answer (so "quiet" stops it)."""
-        if not self.speak or not text.strip():
+        if self.speak and text.strip():
+            self.speaker.say(text)
+
+    def say_now(self, text: str) -> None:
+        """Says `text` and waits until it's said, like `say` but for words made up on the spot."""
+        if not self.speak:
             return
+        audio = None
         try:
             audio = make_audio(text, self.settings, paths.STATE / f"spoken-{time.time_ns()}")
-            play_as_answer(audio, delete_after=True, text=text)
+            play(audio, wait=True)
         except Exception:
-            log.exception("reading aloud failed")
+            log.exception("saying failed")
+        finally:
+            if audio is not None:
+                audio.unlink(missing_ok=True)
 
     def beep(self, name: str) -> None:
         if self.speak and self.settings.cue_sounds:
@@ -170,6 +204,9 @@ class Assistant:
         self.show("problem", STATUS.get(name, SAYINGS[name]))
         self.beep("error")
         self.say(name)
+        self.failures += 1
+        if self.failures == 2:  # the same trouble twice: point to help instead of repeating
+            self.say("helpoffer")
 
     # --- start ---------------------------------------------------------------------
 
@@ -190,10 +227,14 @@ class Assistant:
         # One recognizer for the whole run, reset after each message. Making new ones with
         # word times on crashes Vosk 0.3.45 after a few dozen.
         self.wake = vosk.KaldiRecognizer(vosk.Model(str(paths.VOSK_MODEL)), RATE)
-        self.wake.SetGrammar(json.dumps(s.wake_phrases + DECOYS + ["[unk]"]))
+        self.wake.SetGrammar(json.dumps(s.wake_phrases + self.wake_ups() + DECOYS + ["[unk]"]))
         self.wake.SetWords(True)  # word times, to check the phrase was said on its own
         self.wake.SetPartialWords(True)  # and for words still being heard
         return True
+
+    def wake_ups(self) -> list[str]:
+        """"Hey Claude, wake up": wakes Utter from sleep."""
+        return [f"{p} wake up" for p in self.settings.wake_phrases]
 
     def heard_wake(self, block: np.ndarray) -> str:
         """The wake phrase when this block completes one said to Utter, else ""."""
@@ -204,7 +245,7 @@ class Assistant:
             around = self.wake.utter_surroundings = Surroundings()
             around.judged = set()  # start times of phrases already decided
         around.add(block)
-        phrases = self.settings.wake_phrases
+        phrases = self.settings.wake_phrases + self.wake_ups()  # the longer one wins when both fit
         if self.wake.AcceptWaveform(block.tobytes()):
             result = json.loads(self.wake.Result())
             words, text = find(result.get("result", []), phrases), result.get("text", "")
@@ -223,10 +264,13 @@ class Assistant:
         around.judged.add(start)
         heard = " ".join(w["word"] for w in words)
         if not around.said_alone(words, self.settings.speaking_level):
-            log.info("ignored %r in %r: as loud as the sound around it", heard, text)
+            log.info("ignored %r in %s: as loud as the sound around it", heard, self.private(text))
             return ""
-        if mentions(speaking(), phrases):
+        if mentions(speaking(), self.settings.wake_phrases):
             log.info("ignored %r: Utter's own answer is saying it", heard)
+            return ""
+        if self.sleeping and not heard.endswith("wake up"):
+            log.info("ignored %r: asleep", heard)
             return ""
         return heard
 
@@ -251,7 +295,7 @@ class Assistant:
             trouble = hotkey.listen(s.hotkey, self.hotkey)
             if trouble:
                 taken = "taken by another app" if "already used" in trouble else "not understood"
-                self.idle_text = f"Say “{s.wake_name}” (shortcut {s.hotkey} {taken})"
+                self.idle_text = self.awake_text = f"Say “{s.wake_name}” (shortcut {s.hotkey} {taken})"
         self.ears.set()
 
         def on_audio(indata, frames, t, status):
@@ -296,6 +340,14 @@ class Assistant:
             if paused.is_set():
                 continue
             log.info("wake: %s", woke)
+            if woke.endswith("wake up") or (self.sleeping and woke == "shortcut"):
+                self.sleeping = False
+                self.idle_text = self.awake_text
+                self.show("idle", self.idle_text)
+                self.say("awake")
+                if woke != "shortcut":
+                    self.wake.Reset()
+                    continue
             try:
                 self.one_message()
             except Exception:
@@ -317,7 +369,8 @@ class Assistant:
 
     def one_message(self) -> None:
         s = self.settings
-        stop_answer()
+        self.speaker.interrupt()  # keeps its place, so "more" carries on
+        stop_player()  # an answer the hook read itself, while Utter wasn't running
         paths.STATE.mkdir(parents=True, exist_ok=True)
         paths.LISTENING_FLAG.write_text(str(time.time()))
         saved_clipboard = clipboard_text()
@@ -430,9 +483,9 @@ class Assistant:
         self.show("working", "Getting your words right")
         final, sureness = self.final_words(chunks)
         final = final or live
-        log.info("final: %r (%s, sureness %.2f)", final, how, sureness)
+        log.info("final: %s (%s, sureness %.2f)", self.private(final), how, sureness)
         if only_phantoms(final, PHANTOMS):
-            log.info("only noise: %r", final)
+            log.info("only noise: %s", self.private(final))
             self.cancelled(target, prefix, "Only noise heard, so nothing was typed")
             return
         command, arg = parse(final, s.wake_phrases)
@@ -459,6 +512,10 @@ class Assistant:
                 self.show("problem", "Not sure I heard right, so not sent. Check it", text)
                 self.say("unclear")
                 self.say_text(text)
+                return
+            if len(text.split()) >= LONG_MESSAGE and self.objection(text):
+                self.show("idle", f"Left unsent. Say “{s.wake_name}, send it”")
+                self.say("notsent")
                 return
             self.sent(target.send())
         else:
@@ -509,17 +566,43 @@ class Assistant:
         sureness = sum(seg.avg_logprob for seg in segments) / len(segments) if segments else 0.0
         return text, sureness
 
+    def objection(self, text: str, seconds: float = 2.5) -> bool:
+        """Reads the start of a long message back, then listens a moment for "wait"."""
+        if not self.speak:
+            return False
+        self.say_now("Sending: " + " ".join(text.split()[:8]) + "...")
+        self.drain()
+        self.ears.set()
+        chunks, end = [], time.time() + seconds
+        while time.time() < end:
+            try:
+                chunks.append(self.audio.get(timeout=0.2))
+            except queue.Empty:
+                pass
+        self.ears.clear()
+        if not any(level(c) > self.settings.speaking_level for c in chunks):
+            return False
+        heard, _ = self.transcribe(self.live_model, chunks, beam_size=1)
+        return bool(re.search(r"\b(wait|stop|no|don'?t|cancel|hold)\b", heard.lower()))
+
     def sent(self, problem: str) -> None:
         if problem:
             self.problem(problem)
         else:
+            self.failures = 0
+            self.speaker.last_sent = time.time()
             self.show("idle", "Sent")
             self.say("sent")
+            self.beep("thinking")  # Claude is working on it
 
     # --- commands ------------------------------------------------------------------
 
     def command(self, name: str, arg: str, target, prefix: str) -> None:
         log.info("command: %s %s", name, arg)
+        if target.live_typing and name not in ("scratch", "cancel"):
+            target.write(prefix)  # put back what was there before
+        if self.answer_command(name):
+            return
         stop_answer()
         if name == "scratch":
             if target.live_typing:
@@ -530,12 +613,23 @@ class Assistant:
         if name == "cancel":
             self.cancelled(target, prefix, "Cancelled")
             return
-        if target.live_typing:
-            target.write(prefix)  # put back what was there before
         if name == "send":
             self.sent(target.send())
         elif name == "quiet":
             self.show("idle", self.idle_text)
+        elif name == "sleep":
+            self.sleeping = True
+            self.idle_text = f"Asleep. Say “{self.settings.wake_name}, wake up”"
+            self.show("paused", self.idle_text)
+            self.say("sleeping")
+        elif name in ("beeps off", "beeps on"):
+            self.change_setting("cue_sounds", name == "beeps on")
+            self.show("idle", "Beeps are " + ("on" if name == "beeps on" else "off"))
+            self.say("beepson" if name == "beeps on" else "beepsoff")
+        elif name in ("offline voice", "online voice"):
+            self.change_setting("voice_engine", "windows" if name == "offline voice" else "edge")
+            self.show("idle", "Offline voice" if name == "offline voice" else "Natural voice")
+            self.say("offline" if name == "offline voice" else "online")
         elif name == "stop":
             problem = target.escape()
             if problem:
@@ -551,19 +645,6 @@ class Assistant:
             paths.VOICE_OFF.unlink(missing_ok=True)
             self.show("idle", "Spoken answers are on")
             self.say("voiceon")
-        elif name == "help":
-            ui_events.put(("help", "toggle"))
-            self.show("idle", self.idle_text)
-        elif name == "repeat":
-            try:
-                answer = paths.LAST_ANSWER.read_text(encoding="utf-8")
-            except OSError:
-                answer = ""
-            if not answer.strip():
-                self.problem("noanswer")
-                return
-            self.show("idle", "Repeating the answer")
-            self.say_text(answer)
         elif name == "read back":
             text = prefix if target.can_read else getattr(target, "typed", "")
             if not text:
@@ -590,3 +671,66 @@ class Assistant:
             else:
                 self.show("idle", f"Typed “{arg}”")
                 self.say("typed")
+
+    def answer_command(self, name: str) -> bool:
+        """Commands about the answer being read, and about Utter. True when `name` was one."""
+        sp = self.speaker
+        if name == "more":
+            if sp.more():
+                self.show("idle", "Reading the rest")
+            else:
+                self.say("nomore")
+        elif name in ("skip", "back", "pause"):
+            if getattr(sp, name)():
+                self.show("idle", {"skip": "Skipped", "back": "Going back", "pause": "Paused. Say “more” to go on"}[name])
+            else:
+                self.say("notreading")
+        elif name == "repeat":
+            if sp.repeat():
+                self.show("idle", "Repeating the answer")
+            else:
+                self.problem("noanswer")
+        elif name in ("slower", "faster"):
+            rate = max(-50, min(50, self.settings.speaking_rate + (-15 if name == "slower" else 15)))
+            self.change_setting("speaking_rate", rate)
+            self.show("idle", f"Speaking speed {rate:+d}%")
+            self.say(name)
+            sp.more()  # carry on reading, at the new speed
+        elif name == "status":
+            self.say_now(self.status_words())
+        elif name == "help":
+            ui_events.put(("help", "toggle"))
+            self.say_now(self.help_words())
+        else:
+            return False
+        return True
+
+    def change_setting(self, name: str, value) -> None:
+        """Changes a setting now and in config.toml, so it stays after a restart."""
+        setattr(self.settings, name, value)
+        try:
+            paths.save(name, value)
+        except OSError:
+            log.exception("couldn't save %s", name)
+
+    def status_words(self) -> str:
+        wake = self.settings.wake_name
+        if self.sleeping:
+            return f"I'm asleep. Say {wake}, wake up, when you need me."
+        parts = ["I'm here and listening for you."]
+        if paths.VOICE_OFF.exists():
+            parts.append("Spoken answers are off.")
+        if self.speaker.remaining():
+            parts.append(f"There's more of the last answer. Say {wake}, more.")
+        elif time.time() - self.speaker.last_sent < 120:
+            parts.append("Claude may still be working on your last message.")
+        return " ".join(parts)
+
+    def help_words(self) -> str:
+        """The few commands that make sense right now, spoken."""
+        wake, send = self.settings.wake_name, (self.settings.send_phrases or ["send it"])[0]
+        if self.speaker.remaining():
+            return (f"While I read an answer, say {wake}, then: more, skip, go back, pause, slower, "
+                    f"faster, or quiet.")
+        return (f"Say {wake}, then your message, and end with {send}. You can also say {wake}, then: "
+                f"read it back, scratch that, repeat that, more, cancel, or what's happening.")
