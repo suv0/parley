@@ -180,6 +180,7 @@ class Speaker:
                 mark_playing(self.player.pid, audio, text)
                 self.player.wait()
                 self.playing = ""
+                paths.SPEAKING.unlink(missing_ok=True)
                 _remove(audio)
                 with self.lock:
                     if self.parts is parts and self.index == index and not self.paused:
@@ -212,7 +213,10 @@ class Speaker:
             if self.settings.read_answers == "mine" and time.time() - self.last_sent > 15 * 60:
                 log.info("an answer arrived, not read: only answers to voice messages are read")
                 continue
-            self.answer(item.get("short", ""), item.get("more", []))
+            more = item.get("more", [])
+            log.info("reading an answer (%s, %d more parts%s)", "rewritten by Claude" if item.get("by") == "claude"
+                     else "plain", len(more), f", {len(found) - 1} older skipped" if len(found) > 1 else "")
+            self.answer(item.get("short", ""), more)
 
 
 def _saved_more() -> list[str]:
