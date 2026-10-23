@@ -346,3 +346,12 @@ def test_unsure_words_are_not_pasted_into_another_app(models, monkeypatch):
     monkeypatch.setattr(a, "final_words", lambda _chunks: ("Maria take me inside", -1.3))
     a.finish(notepad, "", "leave", [silence(1)], "Maria take me inside")
     assert notepad.writes == []
+
+
+def test_a_wake_while_the_pc_is_locked_says_so_and_types_nothing(models, monkeypatch):
+    box = FakeTarget(live=True, text="Draft")
+    a = Assistant(paths.Settings(), hands=FakeHands(box), speak=False)
+    monkeypatch.setattr(app_module, "pc_locked", lambda: True)
+    a.one_message()
+    assert box.writes == [] and box.sent == 0
+    assert "The PC is locked" in statuses()

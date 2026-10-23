@@ -22,7 +22,7 @@ import time
 import numpy as np
 
 from . import settings as paths
-from .targets import Hands, clipboard_text, restore_clipboard
+from .targets import Hands, clipboard_text, pc_locked, restore_clipboard
 from .speaker import Speaker
 from .voice import clip, cue, make_audio, play, remove_old_answers, speaking, stop_answer, stop_player
 from .wake import AFTER, Surroundings, find, level, mentions
@@ -62,6 +62,7 @@ SAYINGS = {
     "voiceoff": "Okay, I'll stop reading my answers. Say voice on to bring them back.",
     "voiceon": "Voice is back on.",
     "nomic": "I can't use the microphone. Check the Windows microphone privacy setting.",
+    "locked": "Your PC is locked. Unlock it, then try again.",
     "unclear": "I'm not sure I heard that right, so I didn't send it. Here's what I typed.",
     "changed": "Changed.",
     "notfound": "I couldn't find that in the box.",
@@ -99,6 +100,7 @@ STATUS = {
     "notfound": "Couldn't find that word",
     "notsupported": "Only in the Claude app's box",
     "noanswer": "No answer to repeat yet",
+    "locked": "The PC is locked",
 }
 
 
@@ -369,6 +371,9 @@ class Assistant:
 
     def one_message(self) -> None:
         s = self.settings
+        if self.realtime and pc_locked():
+            self.problem("locked")  # Windows lets nothing type into the lock screen
+            return
         self.speaker.interrupt()  # keeps its place, so "more" carries on
         stop_player()  # an answer the hook read itself, while Utter wasn't running
         paths.STATE.mkdir(parents=True, exist_ok=True)

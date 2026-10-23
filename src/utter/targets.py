@@ -63,6 +63,33 @@ def window_owner(hwnd: int) -> int:
         return 0
 
 
+def program_name(pid: int) -> str:
+    """'LockApp.exe' for a process id, or "" when it can't be read."""
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return ""
+    try:
+        size = ctypes.c_ulong(260)
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if kernel32.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
+            return buffer.value.rsplit("\\", 1)[-1]
+        return ""
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def pc_locked() -> bool:
+    """True while the lock screen is up: nothing can be typed, so Utter shouldn't listen."""
+    import win32gui
+
+    try:
+        front = win32gui.GetForegroundWindow()
+    except Exception:
+        return False
+    return program_name(window_owner(front)).lower() == "lockapp.exe" if front else False
+
+
 def bring_to_front(hwnd: int) -> None:
     """Windows often refuses SetForegroundWindow to a background program. Try the usual
     workarounds; a click on the box afterwards activates the window anyway."""
