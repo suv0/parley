@@ -122,22 +122,52 @@ def _rect(info) -> tuple[int, int, int, int]:
     return (r.left, r.top, r.right, r.bottom)
 
 
+def open_clipboard(seconds: float = 1.0) -> bool:
+    """Another app (a clipboard manager, a browser) often holds the clipboard for a moment."""
+    import win32clipboard
+
+    end = time.time() + seconds
+    while True:
+        try:
+            win32clipboard.OpenClipboard()
+            return True
+        except Exception:
+            if time.time() > end:
+                return False
+            time.sleep(0.05)
+
+
 def paste(text: str) -> None:
     import win32clipboard
     from pywinauto.keyboard import send_keys
 
-    win32clipboard.OpenClipboard()
-    win32clipboard.EmptyClipboard()
-    win32clipboard.SetClipboardText(text, win32clipboard.CF_UNICODETEXT)
-    win32clipboard.CloseClipboard()
+    if not open_clipboard():
+        log.info("clipboard busy; typing the text instead")
+        type_text(text)
+        return
+    try:
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardText(text, win32clipboard.CF_UNICODETEXT)
+    finally:
+        win32clipboard.CloseClipboard()
     send_keys("^v")
+
+
+def type_text(text: str) -> None:
+    """Types `text` as Unicode key presses, for when the clipboard can't be used."""
+    from pywinauto.keyboard import send_keys
+
+    # Enter would send the message, so line breaks become spaces.
+    escaped = "".join("{" + c + "}" if c in "+^%~(){}[]" else c for c in text.replace("\n", " "))
+    send_keys(escaped, with_spaces=True, pause=0, vk_packet=True)
 
 
 def clipboard_text() -> str | None:
     import win32clipboard
 
     try:
-        win32clipboard.OpenClipboard()
+        if not open_clipboard():
+            return None
         try:
             return win32clipboard.GetClipboardData(win32clipboard.CF_UNICODETEXT)
         finally:
@@ -152,10 +182,13 @@ def restore_clipboard(text: str | None) -> None:
     import win32clipboard
 
     try:
-        win32clipboard.OpenClipboard()
-        win32clipboard.EmptyClipboard()
-        win32clipboard.SetClipboardText(text, win32clipboard.CF_UNICODETEXT)
-        win32clipboard.CloseClipboard()
+        if not open_clipboard():
+            return
+        try:
+            win32clipboard.EmptyClipboard()
+            win32clipboard.SetClipboardText(text, win32clipboard.CF_UNICODETEXT)
+        finally:
+            win32clipboard.CloseClipboard()
     except Exception:
         pass
 
@@ -310,13 +343,25 @@ class ClaudeBox:
         return out if isinstance(out, tuple) else (str(out), "")
 
     def write(self, text: str) -> str:
-        """Replaces everything in the box with `text`."""
+        """Makes the box say `text`. New words at the end are added there, so the box doesn't
+        flicker while you talk; any other change replaces the whole text."""
+        from pywinauto.keyboard import send_keys
 
         def job():
             problem = self._focus()
-            if not problem:
-                self._replace(text)
-            return problem
+            if problem:
+                return problem
+            current = self._text()
+            if current == text.strip():
+                return ""
+            if current and text.startswith(current):
+                send_keys("^{END}")
+                paste(text[len(current):])
+                time.sleep(0.1)
+                if self._text() == text.strip():
+                    return ""
+            self._replace(text)
+            return ""
 
         return self.hands.call(job) or ""
 
