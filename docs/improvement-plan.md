@@ -182,6 +182,35 @@ phrases and look-alikes:
 
 ---
 
+## Status (23 October 2026)
+
+**Built and tested:**
+- **1.1 Typing lag.** Pieces are locked in at pauses, and live updates only transcribe the unfinished tail. Each
+  piece gets its final pass in the background, and new words are added at the end of the box.
+- **1.2 Wake checks.** The loudness check around the phrase, the self-wake guard, decoys and sleep mode, with a
+  recorded-speech bench.
+- **1.3 Quiet recovery.** A soft tone after 5 s of nothing, "cancel" and "never mind", Whisper phantoms and loops
+  filtered, and no unsure pastes into other apps.
+- **1.4 Clipboard.** Retries, and typing as key presses as a fallback.
+- **2.1 Spoken rewrite.** Haiku through the API key or the claude command, with the rules version as a fallback.
+  `utter doctor` reports which one is in use.
+- **2.2 Long answers.** Short first, then "more", "skip", "go back", "pause", "slower" and "faster". Speech is made a
+  part ahead.
+- **2.3 Routing and timing.** Answers wait while you talk, `read_answers = "mine"`, and tones for sent and for an
+  answer coming.
+- **Phase 3.** Spoken help, "what's happening", specific problems with help offered after two in a row, settings by
+  voice, and a readback with a chance to say "wait" for long messages.
+- **Phase 4.** No words in the log unless `log_words = true`, and wake decisions logged for tuning.
+
+**Not built, and why:**
+- **"Correct that" with numbered alternatives (3.7).** faster-whisper returns only its best guess, not a list of
+  alternatives. "Change X to Y" and "spell" still work.
+- **Saying where the words go the first time, in cursor mode (1.3).** The strip shows it. Speaking it on every
+  new window felt like too much talking.
+- **openWakeWord (1.2.4).** Tested and rejected for now: too many missed real wakes. See above.
+- **The speech bench in CI.** GitHub's Windows runner has no speech models, so `test_listening.py` is skipped
+  there. Run it locally with `python -m pytest`.
+
 ## Order of work
 
 1. **1.1** typing lag

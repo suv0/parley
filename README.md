@@ -39,7 +39,8 @@ Pausing to think never sends. End with **"send it"**, or press the shortcut agai
 <td width="33%" valign="top">
 
 ### 🔊 Hear the answer
-Claude's reply is read aloud, without the code and tables. **"Repeat that"** plays it again.
+Claude's reply is **rewritten for listening**: the outcome first, things described instead of read out.
+**"More"** reads the rest.
 
 </td>
 </tr>
@@ -78,11 +79,19 @@ Say **Hey Claude** (or press **Ctrl+Alt+H**) first.
 | ✏️ | **change** *word* **to** *word* | Fixes a word: "change staging to production" |
 | 🔤 | **spell** *letters* | "spell kilo uniform bravo echo" types *kube*. Say "capital" for a capital letter |
 | ⌨️ | **type** *command* | Types a command word instead of running it: "type stop" types *stop* |
+| ✖️ | **cancel** / **never mind** | Stops listening and types nothing |
 | 🔁 | **repeat that** | Reads Claude's last answer again |
+| ➕ | **more** | Reads the rest of the answer, or carries on where it stopped |
+| ⏭️ | **skip** / **go back** / **pause** | Moves around the answer being read |
+| 🐢 | **slower** / **faster** | Changes the reading speed, and remembers it |
 | 🤫 | **quiet** | Stops reading the current answer |
 | ⏹️ | **stop** | Stops Claude's work (presses Esc) |
+| 🛰️ | **what's happening** | Says what Utter is doing: listening, asleep, more to read, Claude still working |
+| 😴 | **go to sleep** | Only **Hey Claude, wake up** (or the shortcut) wakes it. For films and meetings |
 | 🔈 | **voice off** / **voice on** | Turns spoken answers off or on |
-| ❓ | **help** | Shows the command list on the strip |
+| 🔕 | **beeps off** / **beeps on** | Turns the tones off or on |
+| 🗣️ | **offline voice** / **natural voice** | Switches between the Windows voice and the Edge voice |
+| ❓ | **help** | Says the commands that make sense right now, and shows them on the strip |
 
 > [!TIP]
 > Spelling works best with the NATO alphabet (alpha, bravo, charlie…). Single letters are easy to mishear.
@@ -165,6 +174,23 @@ added with their defaults.
 
 To always use one, set `target` to `"claude-app"` or `"cursor"`.
 
+## 🔊 How answers are read
+
+Answers come from **Claude Code**: the Claude app's Code tab, or `claude` in a terminal. Utter adds a small hook to
+Claude Code that hands each answer over when Claude finishes. Answers in an ordinary chat aren't read aloud.
+
+1. **Rewritten for listening.** A fast Claude model (`claude-haiku-5-5`) turns the written answer into what a person
+   would say: the outcome first, "the pull request that adds the demo" instead of "PR 2", no code, links or symbols.
+   It uses `ANTHROPIC_API_KEY` when that's set, otherwise the `claude` command and your Claude login.
+2. **If that can't be done in time,** Utter reads the answer itself with code, links, tables and markdown taken out.
+   `utter doctor` tells you which one you're getting, and why.
+3. **Short first.** You hear two to four sentences. When there's more, Utter says so, and **"more"** reads the rest a
+   part at a time. **"Skip"**, **"go back"** and **"pause"** move around it.
+4. **Never over you.** An answer that arrives while you're talking waits until you finish. Waking Utter pauses an
+   answer, and "more" carries on from there.
+
+Set `read_answers = "mine"` to hear only answers to messages you sent by voice.
+
 ## ♿ Accessibility
 
 - **No mouse or keyboard needed** after setup. Every command works by voice.
@@ -172,7 +198,10 @@ To always use one, set `target` to `"claude-app"` or `"cursor"`.
   "repeat that" let you hear your message and the answer.
 - **A shortcut instead of the wake phrase**, for noisy rooms, or if the wake phrase is hard for you to say.
 - **A large, high-contrast strip:** `strip_size = "large"`, `high_contrast = true`.
-- **Slower or faster speech:** `speaking_rate = -30` (slower) or `25` (faster).
+- **Slower or faster speech:** say **"slower"** or **"faster"**, or set `speaking_rate`.
+- **Know what's going on without looking:** a tone for each step (listening, done, sent, answer coming, cancelled),
+  **"what's happening"**, and **"help"**, which says the commands that fit the moment.
+- **Long messages are read back** briefly before they're sent, with a moment to say "wait".
 - **More time to think:** raise `quiet_seconds`. Nothing sends until you say so.
 - **Unclear messages are never sent.** When Utter isn't sure it heard you, it types the words and reads them back.
 
@@ -197,7 +226,10 @@ language = "en"             # "de", "es", "fr", "hi", "bn", ...: run install.cmd
 voice_engine = "edge"       # "windows" for the offline Windows voices
 voice = "en-US-AndrewMultilingualNeural"   # any Edge voice: python -m edge_tts --list-voices
 speaking_rate = 0           # -30 slower, 25 faster
-cue_sounds = true           # beeps instead of saying "Yes?"
+cue_sounds = true           # tones instead of saying "Yes?"
+spoken_answers = "rewrite"  # "plain" to read answers without asking Claude to rewrite them
+read_answers = "all"        # "mine": only answers to messages you sent by voice
+log_words = false           # true writes what Utter hears into its log, to help find a problem
 quiet_seconds = 15.0        # stop listening after this much quiet, leaving the text unsent
 speaking_level = 0.008      # raise it in a noisy room
 microphone = ""             # part of a microphone's name; empty means the Windows default
@@ -216,9 +248,10 @@ high_contrast = false
 | Turning your voice into text | 🟢 On your PC ([faster-whisper](https://github.com/SYSTRAN/faster-whisper)) |
 | Reading answers aloud, `voice_engine = "windows"` | 🟢 On your PC |
 | Reading answers aloud, `voice_engine = "edge"` (default) | 🟠 The text is sent to Microsoft's Edge voice service ([edge-tts](https://github.com/rany2/edge-tts)) |
+| Rewriting answers for listening, `spoken_answers = "rewrite"` (default) | 🟠 Claude's answer is sent back to Anthropic, which wrote it |
 
 Utter keeps no recordings and sends nothing anywhere else. If the Edge voice can't be reached, it uses the Windows
-voice.
+voice. Its log says how long things were and how sure it was, not what was said, unless you set `log_words = true`.
 
 ## 🩺 Troubleshooting
 
@@ -272,6 +305,28 @@ Set `target = "claude-app"` to always use the Claude app.
 </details>
 
 <details>
+<summary><b>Answers sound like a document being read out</b></summary>
+
+<br>
+
+Claude isn't rewriting them, so you're hearing the plain version. Run `utter doctor` (below): it tries a rewrite
+and says why it failed. Usually the `claude` command needs you to log in again: open a terminal, run `claude`, and
+log in. Or set the `ANTHROPIC_API_KEY` environment variable, which is also the fastest.
+
+</details>
+
+<details>
+<summary><b>It woke up when I didn't say "Hey Claude"</b></summary>
+
+<br>
+
+Utter only wakes when the phrase stands out from the sound around it, and never to its own voice. A film or video
+can still say something close enough now and then. Say **"Hey Claude, go to sleep"** while it plays, and **"Hey
+Claude, wake up"** after. If it woke and you said nothing, it goes back to waiting with a soft tone.
+
+</details>
+
+<details>
 <summary><b>It keeps mishearing a name</b></summary>
 
 <br>
@@ -301,7 +356,10 @@ The log is at `%USERPROFILE%\.utter\utter.log`.
 - **Utter replaces what's in the Claude box while you talk.** Text that was already there is kept at the front. Don't
   type in the box while Utter is listening.
 - **The wake phrase and commands are English**, even when `language` is set to another language.
-- **"Hey Claude" is heard as common English words**, such as "hey cloud", so similar-sounding speech can wake it.
+- **"Hey Claude" is heard as common English words**, such as "hey cloud". Utter checks that the phrase was said on
+  its own, louder than the room, which stops most false wakes from a TV. Speech that sounds very close can still
+  wake it now and then.
+- **Spoken answers come from Claude Code** (the Claude app's Code tab, or a terminal), not ordinary chats.
 
 ## 🧹 Uninstall
 
@@ -320,7 +378,8 @@ flowchart LR
     where -- no --> strip[Status strip<br/>then typed at the cursor]
     listen -- "…send it" --> final[faster-whisper small.en<br/>final words, word list, fillers out]
     final --> enter([⏎ Send])
-    answer([Claude's answer]) --> hook[Claude Code Stop hook] --> voice[Edge or Windows voice] --> spk([🔊 Speakers])
+    answer([Claude's answer]) --> hook[Claude Code Stop hook] --> rewrite[Claude Haiku<br/>rewrites it for listening]
+    rewrite --> reader[Utter reads it<br/>a part at a time] --> voice[Edge or Windows voice] --> spk([🔊 Speakers])
 ```
 
 <details>
@@ -332,8 +391,11 @@ flowchart LR
 | --- | --- |
 | `src/utter/app.py` | Listening loop and one message, start to finish; the commands |
 | `src/utter/targets.py` | Where the words go: the Claude box, or wherever the cursor is |
-| `src/utter/words.py` | Commands, the send phrase, spelling, fillers and replacements |
-| `src/utter/voice.py` | Edge and Windows voices, beeps |
+| `src/utter/wake.py` | Was the wake phrase said to Utter, or by a TV or by Utter itself? |
+| `src/utter/words.py` | Commands, the send phrase, spelling, fillers, replacements, Whisper's phantom phrases |
+| `src/utter/voice.py` | Edge and Windows voices, tones |
+| `src/utter/spoken.py` | Turning a written answer into a spoken one |
+| `src/utter/speaker.py` | Reading answers a part at a time: more, skip, go back, pause |
 | `src/utter/hotkey.py` | The keyboard shortcut |
 | `src/utter/ui.py` | Status strip and tray icon |
 | `src/utter/speak_reply.py` | The Claude Code hook that reads answers aloud |

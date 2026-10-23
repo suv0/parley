@@ -84,7 +84,9 @@ def rewrite(written: str, s: paths.Settings) -> str:
         timeout=s.rewrite_seconds, creationflags=NO_WINDOW, env={**os.environ, REWRITING: "1"},
     )
     if done.returncode != 0:
-        raise RuntimeError((done.stderr or done.stdout or "claude failed").strip()[:200])
+        said = [line for line in (done.stderr + done.stdout).splitlines()
+                if line.strip() and "hooks module not loaded" not in line]  # plugin notices, not the error
+        raise RuntimeError((said[-1] if said else "the claude command failed").strip()[:200])
     return done.stdout
 
 

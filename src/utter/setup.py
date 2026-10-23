@@ -260,5 +260,25 @@ def doctor() -> int:
     ]
     for name, ok in checks:
         print(f"  [{'ok' if ok else '!!'}] {name}")
+    if settings.spoken_answers == "rewrite":
+        print("  ...  Asking Claude to rewrite a test answer for listening")
+        problem = rewrite_works(settings)
+        if problem:
+            print(f"  [--] Answers rewritten for listening: not working ({problem}).\n"
+                  "       Answers are read in the plain version until it works. To fix it, run  claude\n"
+                  "       once in a terminal and log in, or set the ANTHROPIC_API_KEY environment variable.")
+        else:
+            print("  [ok] Answers rewritten for listening by Claude")
     print(f"\nLog: {paths.LOG}")
     return 0 if all(ok for _, ok in checks) else 1
+
+
+def rewrite_works(settings: paths.Settings) -> str:
+    """"" when Claude can rewrite answers for listening, else why not."""
+    from .spoken import parse, rewrite
+
+    try:
+        return "" if parse(rewrite("Done. The tests pass.", settings)).short else "the reply was empty"
+    except Exception as error:
+        lines = [line for line in str(error).splitlines() if "hooks module not loaded" not in line]
+        return (lines[-1] if lines else type(error).__name__)[:160]
